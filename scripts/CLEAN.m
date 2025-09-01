@@ -4,7 +4,7 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(caf_matrix
     disp("CLEAN running...");
     c = 3e8;
     lambda = c/fc;
-
+    t = (0:length(x_ref)-1)'/fs;
     % znajdź maksimum
     [max_val, linear_idx] = max(caf_matrix(:));
     [delay_idx, doppler_idx] = ind2sub(size(caf_matrix),linear_idx);
@@ -30,10 +30,13 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(caf_matrix
     delay_samp = delay_idx-1;
     f_d = fd_axis(doppler_idx);               % Doppler freq [Hz]
     n = (0:length(x_ref)-1).';
-    echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*f_d*n/fs);
+    
+    echo_model = [zeros(delay_samp,1);x_ref(1:end-delay_samp)].* ...
+        exp(1j*2*pi*f_d/lambda*t);
+    %echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*f_d*n/fs);
 
     % estymacja amplitudy
-    alpha_hat = (x_surv' * echo_model) / (echo_model' * echo_model);
+    alpha_hat = (x_surv' * echo_model) / norm(echo_model) * norm(echo_model);
 
     % odjęcie echa
     echo_est = alpha_hat * echo_model;
