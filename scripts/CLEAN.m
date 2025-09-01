@@ -31,9 +31,9 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(caf_matrix
     f_d = fd_axis(doppler_idx);               % Doppler freq [Hz]
     n = (0:length(x_ref)-1).';
     
-    echo_model = [zeros(delay_samp,1);x_ref(1:end-delay_samp)].* ...
-        exp(1j*2*pi*f_d/lambda*t);
-    %echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*f_d*n/fs);
+    % echo_model = [zeros(delay_samp,1);x_ref(1:end-delay_samp)].* ...
+    %     exp(1j*2*pi*f_d/lambda*t);
+    echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*f_d*n/fs);
 
     % estymacja amplitudy
     alpha_hat = (x_surv' * echo_model) / norm(echo_model) * norm(echo_model);
