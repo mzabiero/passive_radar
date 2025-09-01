@@ -1,0 +1,40 @@
+function CAF(x_ref,x_surv,fs,max_delay,max_doppler,doppler_bins, R,fig_num)
+
+    c = 3e8;
+    lambda = c/fs;
+
+    caf_matrix = zeros(doppler_bins, max_delay);       
+    cpu_count = 12; % make it being taken from system info
+    default_worker_number = 12;
+    worker_number = min(default_worker_number, cpu_count);
+
+    parfor (m = 0:max_delay-1,worker_number)
+        ym = x_surv .* conj([zeros(m,1); x_ref(1:end-m)]);
+        %ym_lpf = lowpass(ym,1/R);
+        %ym_lpf = lowpass(ym, fs / (2 * R), fs);
+        %ym_dec = ym_lpf(1:R:end);
+        ym_dec = decimate(ym,R);
+        %ym_dec = decimate(ym_dec,10); 
+        ym_fft = fftshift(fft(ym_dec,doppler_bins));
+        caf_matrix(:,m+1) = abs(ym_fft);   
+    end
+
+    caf_matrix_norm = caf_matrix / max(caf_matrix(:));  % normalizacja
+    caf_matrix_dB = mag2db(abs(caf_matrix_norm.'));
+
+    figure(fig_num);
+    %delay_axis = linspace(-max_delay/2, max_delay/2, doppler_bins);
+    %delay_axis = (0:max_delay-1) * 3e8 / (fs * 1e3);  % [km]
+    delay_samples = 0:max_delay-1;
+    delay_axis_km = (c/fs)*delay_samples/1000;
+    f_dec = fs/R;
+    k = (-doppler_bins/2):(doppler_bins/2-1);
+    fd = (f_dec/doppler_bins)*k;
+    doppler_axis =  (lambda/2).*fd;
+    imagesc(doppler_axis, delay_axis_km,caf_matrix_dB);
+    clim([mean(caf_matrix_dB(:)),0]);
+    xlabel('Bistatic velocity, V (m/s)');
+    ylabel('Bistatic range, R (km)');
+    title('Cross Ambiguity Function (CAF)');
+    colormap jet; colorbar;
+end
