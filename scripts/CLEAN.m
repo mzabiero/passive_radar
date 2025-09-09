@@ -13,10 +13,13 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(caf_matrix
     delay_samples = 0:max_delay-1;
     delay_axis_km = (c/fs) * delay_samples / 1000;
 
-    f_dec = fs/R;
-    k = (-doppler_bins/2):(doppler_bins/2-1);
-    fd_axis = (f_dec/doppler_bins) * k;       % Doppler frequency [Hz]
-    vel_axis = (lambda/2) * fd_axis;          % bistatic velocity [m/s]
+    N = length(x_ref);
+    vel_axis = linspace(-c/N,c/N,doppler_bins);
+
+    % f_dec = fs/R;
+    % k = (-doppler_bins/2):(doppler_bins/2-1);
+    % fd_axis = (f_dec/doppler_bins) * k;       % Doppler frequency [Hz]
+    % vel_axis = (lambda/2) * fd_axis;          % bistatic velocity [m/s]
     % doppler_limit = 300;  % m/s
     % mask = abs(vel_axis) <= doppler_limit;
     % 
@@ -28,12 +31,12 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(caf_matrix
 
     % model echa
     delay_samp = delay_idx-1;
-    f_d = fd_axis(doppler_idx);               % Doppler freq [Hz]
+    %f_d = fd_axis(doppler_idx);               % Doppler freq [Hz]
     n = (0:length(x_ref)-1).';
-    
+    V_e = vel_axis(doppler_idx);
     % echo_model = [zeros(delay_samp,1);x_ref(1:end-delay_samp)].* ...
     %     exp(1j*2*pi*f_d/lambda*t);
-    echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*f_d*n/fs);
+    echo_model = circshift(x_ref, delay_samp) .* exp(1j*2*pi*V_e*n/fs);
 
     % estymacja amplitudy
     alpha_hat = (x_surv' * echo_model) / norm(echo_model) * norm(echo_model);

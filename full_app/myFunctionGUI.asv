@@ -46,7 +46,7 @@ function passive_radar_app
         'Editable','off');
 
     % Historia wyników (listbox + przyciski)
-    lstHistory = uilistbox(pStatus,'Position',[10 hStatus-210 leftW-20 55]);
+    lstHistory = uilistbox(pStatus,'Position',[10 hStatus-210 leftW-20 85]);
     btnLoadHist = uibutton(pStatus,'Text','Load',...
         'Position',[15 15 80 30],...
         'ButtonPushedFcn',@(src,event) loadHistory());
@@ -114,7 +114,7 @@ function passive_radar_app
     end
 
     % === Action buttons ===
-    uibutton(pActions,'Text','CAF - oryginalne','Position',[20 hActions-60 340 30],...
+    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions-60 340 30],...
         'ButtonPushedFcn',@(src,event) runCAF('orig'));
     uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-100 340 30],...
         'ButtonPushedFcn',@(src,event) runCAF('close'));
@@ -220,6 +220,7 @@ function passive_radar_app
         entry.caf = caf;
         entry.surv = surv_state;
         entry.mode = tag;
+        
         data.history{end+1} = entry;
         data.histTitles{end+1} = sprintf('%d: %s',numel(data.history),tag);
         lstHistory.Items = data.histTitles;
@@ -235,12 +236,11 @@ function passive_radar_app
         caf = entry.caf;
         surv_state = entry.surv;
         mode = entry.mode;
-        delay_axis = entry.dek;
-        doppler_axis = doppler_axis;
+        
         % ustaw jako bieżące
         data.lastCAF = caf;
         data.lastSurv = surv_state;
-        plotCAF(caf,[],[],'History: ' + string(mode));
+        plotCAF(caf,data.delay_axis,data.doppler_axis,'History: ' + string(mode));
         updateStatus();
     end
 

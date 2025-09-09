@@ -268,6 +268,7 @@ function passive_radar_app
             ax.CLim = [editCmin.Value, editCmax.Value];
         end
         title(ax,ttl);
+        disp("Done");
     end
 
     function updateStatus()
