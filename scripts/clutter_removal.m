@@ -27,5 +27,5 @@ function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
         idx = idx+M;
     end
     % [y,e] = lattice(x_ref,x_surv);
-    % x_surv_clean = e; 
+    %x_surv_clean = e; 
 end

@@ -44,12 +44,13 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     % caf_matrix = caf_matrix_dB(:,mask);
     % disp(".")
     % Rysowanie
-    %figure;
-    % imagesc(doppler_axis, delay_axis_km, caf_matrix);
-    % xlim([-doppler_limit doppler_limit]);
-    % xlabel('Bistatic velocity, V (m/s)');
-    % ylabel('Bistatic range, R (km)');
-    % title('CAF (interesujący zakres Dopplera ±300 m/s)');
-    % colormap jet; colorbar;
+    figure;
+    imagesc(doppler_axis, delay_axis_km, caf_matrix_dB);
+    clim([mean(caf_matrix_dB(:)), 0])
+    %xlim([-doppler_limit doppler_limit]);
+    xlabel('Bistatic velocity, V (m/s)');
+    ylabel('Bistatic range, R (km)');
+    title('CAF (interesujący zakres Dopplera ±300 m/s)');
+    colormap jet; colorbar;
 
 end
