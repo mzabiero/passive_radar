@@ -12,7 +12,8 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     worker_number = min(default_worker_number, cpu_count);
 
     parfor (m = 0:max_delay-1,worker_number)
-        ym = x_surv .* conj([zeros(m,1); x_ref(1:end-m)]);
+        %ym = x_surv .* conj([zeros(m,1); x_ref(1:end-m)]);
+        ym = x_surv .* conj(circshift(x_ref,m));
         %ym_lpf = lowpass(ym,1/R);
         %ym_lpf = lowpass(ym, fs / (2 * R), fs);
         %ym_dec = ym_lpf(1:R:end);
@@ -33,7 +34,7 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     f_dec = fs/R;
     k = (-doppler_bins/2):(doppler_bins/2-1);
     fd = (f_dec/doppler_bins)*k;
-    doppler_axis =  (lambda/2).*fd;
+    doppler_axis =  (lambda).*fd;
 
 
     % Wybranie interesującego zakresu Dopplera
@@ -44,13 +45,12 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     % caf_matrix = caf_matrix_dB(:,mask);
     % disp(".")
     % Rysowanie
-    figure;
-    imagesc(doppler_axis, delay_axis_km, caf_matrix_dB);
-    clim([mean(caf_matrix_dB(:)), 0])
-    %xlim([-doppler_limit doppler_limit]);
-    xlabel('Bistatic velocity, V (m/s)');
-    ylabel('Bistatic range, R (km)');
-    title('CAF (interesujący zakres Dopplera ±300 m/s)');
-    colormap jet; colorbar;
+    % figure;
+    % imagesc(doppler_axis, delay_axis_km, caf_matrix_dB);
+    % clim([mean(caf_matrix_dB(:)), 0])
+    % %xlim([-doppler_limit doppler_limit]);
+    % xlabel('Bistatic velocity, V (m/s)');
+    % ylabel('Bistatic range, R (km)');
+    % colormap jet; colorbar;
 
 end

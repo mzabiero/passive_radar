@@ -11,7 +11,7 @@ function plot_spectrum(x, fs)
     X_norm = X / max(abs(X));
     X_dB = mag2db(abs(X_norm));
 
-    
+    figure;
     plot(f, X_dB);
     xlabel('Częstotliwość [Hz]');
     ylabel('|X(f)|');

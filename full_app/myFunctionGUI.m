@@ -7,7 +7,7 @@ function passive_radar_app
     leftW    = 380;                  % szerokość kolumny po lewej
 
     hFiles   = 360;                  
-    hActions = 200;
+    hActions = 240;
     hStatus  = 260;
 
     % Pozycje paneli po lewej
@@ -32,10 +32,10 @@ function passive_radar_app
     data.histTitles = {};
     
     % === Left column panels ===
-    pFiles = uipanel(fig,'Title','Pliki i parametry',...
+    pFiles = uipanel(fig,'Title','Parameters',...
         'Position',[gap yFiles leftW hFiles]);
 
-    pActions = uipanel(fig,'Title','Operacje',...
+    pActions = uipanel(fig,'Title','Algorithms',...
         'Position',[gap yActions+vert_gap leftW hActions]);
 
     pStatus = uipanel(fig,'Title','Status / Workspace',...
@@ -60,7 +60,7 @@ function passive_radar_app
     xlabel(ax,'Bistatic velocity (m/s)');
     ylabel(ax,'Bistatic range (km)');
 
-    pClim = uipanel(fig,'Title','Skalowanie osi C',...
+    pClim = uipanel(fig,'Title','Scaling C axis',...
         'Position',[rightX yClim rightW hClim]);
 
     % === CLim controls ===
@@ -83,10 +83,10 @@ function passive_radar_app
         'Position',[740 60 150 22],'Value',true);
 
     % === File pickers ===
-    uibutton(pFiles,'Text','Wybierz ref',...
+    uibutton(pFiles,'Text','Choose ref',...
         'Position',[10 hFiles-60 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('ref'));
-    uibutton(pFiles,'Text','Wybierz surv',...
+    uibutton(pFiles,'Text','Choose surv',...
         'Position',[190 hFiles-60 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('surv'));
 
@@ -122,10 +122,12 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) runCAF('wide'));
     uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-180 340 30],...
         'ButtonPushedFcn',@(src,event) runCLEAN());
+    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-220 340 30],...
+        'ButtonPushedFcn',@(src,event) plotSpectrum());
 
     % ===== Nested functions =====
     function loadFile(type)
-        [file,path] = uigetfile('*.dat');
+        [file,path] = uigetfile({'*.*'});
         if isequal(file,0), return; end
         filename = fullfile(path,file);
         sig = read_complex_binary(filename);
@@ -138,6 +140,7 @@ function passive_radar_app
             data.surv_filename = file;
         end
         updateStatus();
+        %plot_spectrum(data.ref,data.params.fs);
     end
 
     function setParam(name,val)
@@ -214,7 +217,33 @@ function passive_radar_app
         end
         updateStatus();
     end
-
+    
+    function plotSpectrum()
+        if ~isfield(data,'ref') && ~isfield(data,'surv')
+            uialert(fig,'Choose signal','Błąd'); return;
+        end
+       
+        choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','close');
+    
+        if (strcmp(choice, 'ref'))
+            if isfield(data,'ref')
+                plot_spectrum(data.ref,data.params.fs);
+            else
+                uialert(fig,'Choose signal','Błąd'); return;
+            end
+        elseif(strcmp(choice,'surv')) 
+            if isfield(data,'lastSurv')
+                plot_spectrum(data.lastSurv,data.params.fs);
+            elseif isfield(data, 'surv')
+                plot_spectrum(data.surv,data.params.fs);
+            else
+                uialert(fig,'Choose signal','Błąd'); return;
+            end
+        else
+            return;
+        end
+    end
+    
     % --- History management ---
     function addToHistory(caf,surv_state,tag)
         entry.caf = caf;
