@@ -1,7 +1,15 @@
 clear all;close all;clc;
 
-modelname = 'commdvbt';
-open_system(modelname);
+
+
+if exist('commdvbt_file.slx','file')
+    modelname = 'commdvbt_file';
+    load_system(modelname)
+else
+    modelname = 'commdvbt';
+    open_system(modelname);
+end
+
 
 % Define Simulink(R) blocks as variables
 spect = [modelname '/Spectrum Scope'];
@@ -23,4 +31,4 @@ set_param( plot,  'OpenScopeAtSimStart', 'on'  );
 close_system(spect); % Close scopes from previous simulation
 
 sim(modelname);
-%close_system(modelname,0);
+close_system(modelname,0);

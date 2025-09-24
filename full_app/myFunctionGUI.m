@@ -1,88 +1,56 @@
 function passive_radar_app
 
     % === Layout constants ===
-    figPos   = [100 100 1500 900];   % większe okno
+    figPos   = [100 100 2000 900];   % większe okno
     gap      = 10;
     vert_gap = 20;
-    leftW    = 380;                  % szerokość kolumny po lewej
+    
+    % left panel
+    leftW    = 380;
+        hFiles   = 360;              
+        hActions = 240;
+        hStatus  = 260;
+        
+        yStatus  = gap;
+        yActions = yStatus + hStatus + gap;
+        yFiles   = yActions + hActions + gap;
+    
+    % Right panel
+    rightW = 250;
+    rightX = figPos(3) - rightW - gap;
+        hSimParam   = 360;
+        hSimAlgorithms = 240;
+        hSimStatus  = 260;
 
-    hFiles   = 360;                  
-    hActions = 240;
-    hStatus  = 260;
+        ySimStatus  = gap;
+        ySimButtons = ySimStatus + hSimStatus + gap;
+        ySimParam   = ySimButtons + hSimAlgorithms + gap;
 
-    % Pozycje paneli po lewej
-    yStatus  = gap;
-    yActions = yStatus + hStatus + gap;
-    yFiles   = yActions + hActions + gap + vert_gap;
-
-    % Prawa strona
-    rightX   = leftW + 2*gap;
-    rightW   = figPos(3) - rightX - gap;
-    hClim    = 110;
-    yClim    = gap;
-    yAxes    = yClim + hClim + gap;
-    hAxes    = figPos(4) - yAxes - gap;
-
+    % Middle panel
+    centerX   = leftW + gap;
+    centerW   = rightX - centerX - 2*gap;
+        hClim    = 110;
+        yClim    = gap;
+        yAxes    = yClim + hClim + gap;
+        hAxes    = figPos(4) - yAxes - gap;
+        
+   
     % === Main window ===
     fig = uifigure('Name','Passive Radar App','Position',figPos);
-
+    
     % Global data
     data = struct();
     data.history = {};   % <- tu przechowujemy wszystkie wyniki
     data.histTitles = {};
     
-    % === Left column panels ===
-    pFiles = uipanel(fig,'Title','Parameters',...
-        'Position',[gap yFiles leftW hFiles]);
-
-    pActions = uipanel(fig,'Title','Algorithms',...
-        'Position',[gap yActions+vert_gap leftW hActions]);
-
-    pStatus = uipanel(fig,'Title','Status / Workspace',...
-        'Position',[gap yStatus+vert_gap leftW hStatus]);
-
-    % Status textarea
-    txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
-        'Editable','off');
-
-    % Historia wyników (listbox + przyciski)
-    lstHistory = uilistbox(pStatus,'Position',[10 hStatus-210 leftW-20 85]);
-    btnLoadHist = uibutton(pStatus,'Text','Load',...
-        'Position',[15 15 80 30],...
-        'ButtonPushedFcn',@(src,event) loadHistory());
-    btnDelHist = uibutton(pStatus,'Text','Delete',...
-        'Position',[100 15 80 30],...
-        'ButtonPushedFcn',@(src,event) delHistory());
-
-    % === Right side: axes + CLim panel ===
-    ax = uiaxes(fig,'Position',[rightX yAxes rightW hAxes]);
-    title(ax,'CAF');
-    xlabel(ax,'Bistatic velocity (m/s)');
-    ylabel(ax,'Bistatic range (km)');
-
-    pClim = uipanel(fig,'Title','Scaling C axis',...
-        'Position',[rightX yClim rightW hClim]);
-
-    % === CLim controls ===
-    uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
-    editCmin = uieditfield(pClim,'numeric','Value',-30,...
-        'Position',[60 60 80 22]);
-    uilabel(pClim,'Text','C-max','Position',[160 60 50 22]);
-    editCmax = uieditfield(pClim,'numeric','Value',0,...
-        'Position',[210 60 80 22]);
-    btnUpdateCLim = uibutton(pClim,'Text','Update','Position',[310 60 80 22],...
-        'ButtonPushedFcn',@(src,event) setCLimManual());
-
-    uilabel(pClim,'Text','Min slider','Position',[420 60 70 22]);
-    sliderMin = uislider(pClim,'Position',[500 70 220 3],...
-        'Limits',[-80 0],'Value',-30);
-    uilabel(pClim,'Text','Max slider','Position',[420 20 70 22]);
-    sliderMax = uislider(pClim,'Position',[500 30 220 3],...
-        'Limits',[-80 0],'Value',0);
-    chkAuto = uicheckbox(pClim,'Text','Auto (mean→0)',...
-        'Position',[740 60 150 22],'Value',true);
-
-    % === File pickers ===
+    %--------------------------------------------------------------%
+    % ================== Left column panels ============================
+    
+    pFiles = uipanel(fig,'Title','Parameters','Position',[gap yFiles leftW hFiles]);
+    pActions = uipanel(fig,'Title','Algorithms','Position',[gap yActions leftW hActions]);
+    pStatus = uipanel(fig,'Title','Status / Workspace','Position',[gap yStatus leftW hStatus]);
+    
+                    % === File pickers ===
     uibutton(pFiles,'Text','Choose ref',...
         'Position',[10 hFiles-60 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('ref'));
@@ -90,7 +58,7 @@ function passive_radar_app
         'Position',[190 hFiles-60 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('surv'));
 
-    % === Parameters ===
+                    % === Parameters ===
     labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
               'FiltClose: Order','Step','BlockLen',...
               'FiltWide: Order','Step','BlockLen'};
@@ -113,7 +81,7 @@ function passive_radar_app
         if y < 10, break; end
     end
 
-    % === Action buttons ===
+                    % === Action buttons ===
     uibutton(pActions,'Text','CAF - raw','Position',[20 hActions-60 340 30],...
         'ButtonPushedFcn',@(src,event) runCAF('orig'));
     uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-100 340 30],...
@@ -124,7 +92,100 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) runCLEAN());
     uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-220 340 30],...
         'ButtonPushedFcn',@(src,event) plotSpectrum());
+    
+                    % Status textarea
+    txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
+        'Editable','off');
 
+                    % Historia wyników (listbox + przyciski)
+    lstHistory = uilistbox(pStatus,'Position',[10 hStatus-210 leftW-20 85]);
+    btnLoadHist = uibutton(pStatus,'Text','Load',...
+        'Position',[15 15 80 30],...
+        'ButtonPushedFcn',@(src,event) loadHistory());
+    btnDelHist = uibutton(pStatus,'Text','Delete',...
+        'Position',[100 15 80 30],...
+        'ButtonPushedFcn',@(src,event) delHistory());
+
+    % =================== Center column =====================
+    ax = uiaxes(fig,'Position',[centerX yAxes centerW hAxes]);
+    title(ax,'CAF');
+    xlabel(ax,'Bistatic velocity (m/s)');
+    ylabel(ax,'Bistatic range (km)');
+
+    pClim = uipanel(fig,'Title','Scaling C axis',...
+        'Position',[centerX yClim centerW hClim]);
+
+                    % === CLim controls ===
+    uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
+    editCmin = uieditfield(pClim,'numeric','Value',-30,...
+        'Position',[60 60 80 22]);
+    uilabel(pClim,'Text','C-max','Position',[160 60 50 22]);
+    editCmax = uieditfield(pClim,'numeric','Value',0,...
+        'Position',[210 60 80 22]);
+    btnUpdateCLim = uibutton(pClim,'Text','Update','Position',[310 60 80 22],...
+        'ButtonPushedFcn',@(src,event) setCLimManual());
+
+    uilabel(pClim,'Text','Min slider','Position',[420 60 70 22]);
+    sliderMin = uislider(pClim,'Position',[500 70 220 3],...
+        'Limits',[-80 0],'Value',-30);
+    uilabel(pClim,'Text','Max slider','Position',[420 20 70 22]);
+    sliderMax = uislider(pClim,'Position',[500 30 220 3],...
+        'Limits',[-80 0],'Value',0);
+    chkAuto = uicheckbox(pClim,'Text','Auto (mean→0)',...
+        'Position',[740 60 150 22],'Value',true);
+
+
+   % ================= Right column: Simulation panels ======================
+    pSimParam   = uipanel(fig,'Title','Simulation Parameters','Position',[rightX ySimParam rightW hSimParam]);
+    pSimAlg = uipanel(fig,'Title','Simulation Algorithms','Position',[rightX ySimButtons rightW hSimAlgorithms]);
+    pSimStatus  = uipanel(fig,'Title','Simulation Workspace','Position',[rightX ySimStatus rightW hSimStatus]);
+    
+                    % --- Signal parameters ---
+    lblFs = uilabel(pSimParam, ...
+        'Text','fs (Hz)', ...
+        'Position',[gap hSimParam-50 80 22]);
+    editFs = uieditfield(pSimParam,'numeric', ...
+        'Value',10e6, ...
+        'Position',[100 hSimParam-50 120 22]);
+
+    lblFc = uilabel(pSimParam, ...
+        'Text','fc (Hz)', ...
+        'Position',[gap hSimParam-80 80 22]);
+    editFc = uieditfield(pSimParam,'numeric', ...
+        'Value',650e6, ...
+        'Position',[100 hSimParam-80 120 22]);
+    chkCP = uicheckbox(pSimParam, ...
+        'Text','Use Cyclic Prefix', ...
+        'Value',true, ...
+        'Position',[gap hSimParam-110 120 22]);
+    
+                    % --- Echo parameters ---
+    lblDelay = uilabel(pSimParam, ...
+        'Text','Delay (m)', ...
+        'Position',[gap hSimParam-160 80 22]);
+    editDelay = uieditfield(pSimParam,'numeric', ...
+        'Value',300, ...
+        'Position',[100 hSimParam-160 120 22]);
+
+    lblVel = uilabel(pSimParam, ...
+        'Text','Velocity (m/s)', ...
+        'Position',[gap hSimParam-190 80 22]);
+    editVel = uieditfield(pSimParam,'numeric', ...
+        'Value',30, ...
+        'Position',[100 hSimParam-190 120 22]);
+
+    lblAtt = uilabel(pSimParam, ...
+        'Text','Attenuation (dB)', ...
+        'Position',[gap hSimParam-220 100 22]);
+    editAtt = uieditfield(pSimParam,'numeric', ...
+        'Value',-10, ...
+        'Position',[120 hSimParam-220 100 22]);
+
+
+    uibutton(pSimAlg,'Text','Generate simulated signal', ...
+            'Position',[gap hSimAlgorithms-60 rightW-2*gap 30],...
+            'ButtonPushedFcn',@(src,event) simulationGenSig()); 
+%-----------------------------------------------------------------------------------------%
     % ===== Nested functions =====
     function loadFile(type)
         [file,path] = uigetfile({'*.*'});
@@ -223,7 +284,7 @@ function passive_radar_app
             uialert(fig,'Choose signal','Błąd'); return;
         end
        
-        choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','close');
+        choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','ref');
     
         if (strcmp(choice, 'ref'))
             if isfield(data,'ref')
@@ -244,6 +305,10 @@ function passive_radar_app
         end
     end
     
+    function simulationGenSig()
+        sprintf("Simulation function called");
+        
+    end
     % --- History management ---
     function addToHistory(caf,surv_state,tag)
         entry.caf = caf;
@@ -340,8 +405,9 @@ function passive_radar_app
             ax.CLim = [mean(data.lastCAF(:)) 0];
         end
     end
-    function updateCLimFromSliders()
+   function updateCLimFromSliders()
         ax.CLim = [sliderMin.Value sliderMax.Value];
         chkAuto.Value = false;
     end
+
 end

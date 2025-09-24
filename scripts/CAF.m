@@ -34,7 +34,7 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     f_dec = fs/R;
     k = (-doppler_bins/2):(doppler_bins/2-1);
     fd = (f_dec/doppler_bins)*k;
-    doppler_axis =  (lambda).*fd;
+    doppler_axis =  (lambda/2).*fd;
 
 
     % Wybranie interesującego zakresu Dopplera
