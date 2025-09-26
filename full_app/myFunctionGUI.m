@@ -27,8 +27,8 @@ function passive_radar_app
         ySimParam   = ySimButtons + hSimAlgorithms + gap;
 
     % Middle panel
-    centerX   = leftW + gap;
-    centerW   = rightX - centerX - 2*gap;
+    centerX   = leftW + 2*gap;
+    centerW   = figPos(3) - leftW - rightW- 4*gap;
         hClim    = 110;
         yClim    = gap;
         yAxes    = yClim + hClim + gap;
@@ -42,6 +42,8 @@ function passive_radar_app
     data = struct();
     data.history = {};   % <- tu przechowujemy wszystkie wyniki
     data.histTitles = {};
+    data.simulation = {};
+    
     
     %--------------------------------------------------------------%
     % ================== Left column panels ============================
@@ -76,7 +78,7 @@ function passive_radar_app
         uilabel(pFiles,'Text',labels{i},'Position',[10 y 150 22], 'HorizontalAlignment','left');
         uieditfield(pFiles,'numeric','Value',defaults{i},...
             'Position',[190 y 160 22],...
-            'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value));
+            'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value,'data.params'));
         y = y-26;
         if y < 10, break; end
     end
@@ -140,47 +142,27 @@ function passive_radar_app
     pSimAlg = uipanel(fig,'Title','Simulation Algorithms','Position',[rightX ySimButtons rightW hSimAlgorithms]);
     pSimStatus  = uipanel(fig,'Title','Simulation Workspace','Position',[rightX ySimStatus rightW hSimStatus]);
     
-                    % --- Signal parameters ---
-    lblFs = uilabel(pSimParam, ...
-        'Text','fs (Hz)', ...
-        'Position',[gap hSimParam-50 80 22]);
-    editFs = uieditfield(pSimParam,'numeric', ...
-        'Value',10e6, ...
-        'Position',[100 hSimParam-50 120 22]);
-
-    lblFc = uilabel(pSimParam, ...
-        'Text','fc (Hz)', ...
-        'Position',[gap hSimParam-80 80 22]);
-    editFc = uieditfield(pSimParam,'numeric', ...
-        'Value',650e6, ...
-        'Position',[100 hSimParam-80 120 22]);
-    chkCP = uicheckbox(pSimParam, ...
-        'Text','Use Cyclic Prefix', ...
-        'Value',true, ...
-        'Position',[gap hSimParam-110 120 22]);
+                    % --- Simulation parameters ---
+    sim_labels = {'fs (Hz)','fc (Hz)','Cyclic Prefix','OFDM Mode','Duration (s)',...
+              'Echo position (m)','Echo velocity (m/s)','Attenuation'};
+    sim_defaults = {10e6, 650e6, 256, 2e3, 0.1,...
+        2e3, 100, 0.5};
+    data.simulation.params= cell2struct(sim_defaults, ...
+        {'fs','fc','Cyclic_Prefix','OFDM_Mode','Duration',...
+              'Echo_position','Echo_velocity','Attenuation'},2);
+    sim_fields = fieldnames(data.simulation.params);
+    y =hSimParam-50;
+    labelW = rightW/2 - gap;
+    editFieldW = labelW;
+    for i=1:numel(sim_fields)
+        uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], 'HorizontalAlignment','left');
+        uieditfield(pSimParam,'numeric','Value',sim_defaults{i},...
+            'Position',[labelW+gap y editFieldW 22],...
+            'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
+        y = y-26;
+        if y < 10, break; end
+    end
     
-                    % --- Echo parameters ---
-    lblDelay = uilabel(pSimParam, ...
-        'Text','Delay (m)', ...
-        'Position',[gap hSimParam-160 80 22]);
-    editDelay = uieditfield(pSimParam,'numeric', ...
-        'Value',300, ...
-        'Position',[100 hSimParam-160 120 22]);
-
-    lblVel = uilabel(pSimParam, ...
-        'Text','Velocity (m/s)', ...
-        'Position',[gap hSimParam-190 80 22]);
-    editVel = uieditfield(pSimParam,'numeric', ...
-        'Value',30, ...
-        'Position',[100 hSimParam-190 120 22]);
-
-    lblAtt = uilabel(pSimParam, ...
-        'Text','Attenuation (dB)', ...
-        'Position',[gap hSimParam-220 100 22]);
-    editAtt = uieditfield(pSimParam,'numeric', ...
-        'Value',-10, ...
-        'Position',[120 hSimParam-220 100 22]);
-
 
     uibutton(pSimAlg,'Text','Generate simulated signal', ...
             'Position',[gap hSimAlgorithms-60 rightW-2*gap 30],...
@@ -204,10 +186,16 @@ function passive_radar_app
         %plot_spectrum(data.ref,data.params.fs);
     end
 
-    function setParam(name,val)
-        data.params.(name) = val;
+    function setParam(name,val,dest)
+        switch dest
+            case 'data.params'
+                data.params.(name) = val;
+            case 'data.simulation.params'
+                data.simulation.params.(name) = val;
+        end
         updateStatus();
     end
+    
 
     function runCAF(mode)
         if ~isfield(data,'ref') || ~isfield(data,'surv')
@@ -306,7 +294,16 @@ function passive_radar_app
     end
     
     function simulationGenSig()
-        sprintf("Simulation function called");
+        fprintf("Simulation function called\n");
+        data.simulation.params.OFDM_MODE = '2k';
+        sim_sig = runDVBTsim(data.simulation.params.fs, ...
+            data.simulation.params.Cyclic_Prefix, ...
+            data.simulation.params.Duration,'2k');
+        
+        destDir = 'data/DVBT_signals/';
+        fname = [destDir 'sig_sim_iq.bin'];
+        save_comlex_binary(sim_sig,fname);
+        fprintf("File %s saved\n",fname);
         
     end
     % --- History management ---
@@ -347,8 +344,9 @@ function passive_radar_app
         data.histTitles(pos) = [];
         lstHistory.Items = data.histTitles;
     end
+    % --- Simulation helper ---
 
-    % --- Plot helper ---
+        % --- Plot helper ---
     function plotCAF(caf,delay_axis,doppler_axis,ttl)
         if nargin < 2 || isempty(delay_axis)
             delay_axis = 1:size(caf,1);
@@ -405,7 +403,7 @@ function passive_radar_app
             ax.CLim = [mean(data.lastCAF(:)) 0];
         end
     end
-   function updateCLimFromSliders()
+    function updateCLimFromSliders()
         ax.CLim = [sliderMin.Value sliderMax.Value];
         chkAuto.Value = false;
     end
