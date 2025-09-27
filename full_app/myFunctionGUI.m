@@ -145,30 +145,69 @@ function passive_radar_app
                     % --- Simulation parameters ---
     sim_labels = {'fs (Hz)','fc (Hz)','Cyclic Prefix','OFDM Mode','Duration (s)',...
               'Echo position (m)','Echo velocity (m/s)','Attenuation'};
-    sim_defaults = {10e6, 650e6, 256, 2e3, 0.1,...
-        2e3, 100, 0.5};
-    data.simulation.params= cell2struct(sim_defaults, ...
-        {'fs','fc','Cyclic_Prefix','OFDM_Mode','Duration',...
-              'Echo_position','Echo_velocity','Attenuation'},2);
+    sim_defaults = {10e6, 650e6, '1/4', '2k', 0.1, ...
+                2000, 100, 0.5};
+    data.simulation.params = struct( ...
+        'fs', 10e6, ...
+        'fc', 650e6, ...
+        'Cyclic_Prefix','1/4', ...   % store as ratio string
+        'OFDM_Mode','2k', ...        % store as string
+        'Duration',0.1, ...
+        'Echo_position',2000, ...
+        'Echo_velocity',100, ...
+        'Attenuation',0.5);  % default save path
+    
     sim_fields = fieldnames(data.simulation.params);
+
     y =hSimParam-50;
     labelW = rightW/2 - gap;
     editFieldW = labelW;
+    
     for i=1:numel(sim_fields)
-        uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], 'HorizontalAlignment','left');
-        uieditfield(pSimParam,'numeric','Value',sim_defaults{i},...
-            'Position',[labelW+gap y editFieldW 22],...
-            'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
+        switch sim_fields{i}
+            case 'Cyclic_Prefix'
+                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
+                    'HorizontalAlignment','left');
+                uidropdown(pSimParam, ...
+                    'Items',{'0','1/4','1/8','1/16','1/32'}, ...
+                    'Value',sim_defaults{3}, ...
+                    'Position',[labelW+gap y editFieldW 22], ...
+                    'ValueChangedFcn',@(src,event) setParam('Cyclic_Prefix',src.Value,'data.simulation.params'));   
+            case 'OFDM_Mode'
+                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
+                    'HorizontalAlignment','left');
+                uidropdown(pSimParam, ...
+                    'Items',{'2k','8k'}, ...
+                    'Value',sim_defaults{4}, ...
+                    'Position',[labelW+gap y editFieldW 22], ...
+                    'ValueChangedFcn',@(src,event) setParam('OFDM_Mode',src.Value,'data.simulation.params'));    
+            otherwise
+                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
+                    'HorizontalAlignment','left');
+                uieditfield(pSimParam,'numeric','Value',sim_defaults{i}, ...
+                    'Position',[labelW+gap y editFieldW 22], ...
+                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
+        end
         y = y-26;
         if y < 10, break; end
     end
     
+    data.simulation.params.SaveFile = 'data//mat/DVBT_signals/sig_sim_iq.bin';
+
+    uibutton(pSimParam,'Text','Select Output File', ...
+    'Position',[gap 10 rightW-2*gap 30], ...
+    'ButtonPushedFcn',@(src,event) saveFile());
 
     uibutton(pSimAlg,'Text','Generate simulated signal', ...
-            'Position',[gap hSimAlgorithms-60 rightW-2*gap 30],...
-            'ButtonPushedFcn',@(src,event) simulationGenSig()); 
+    'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
+    'ButtonPushedFcn',@(src,event) simulationGenSig());
+
+    uibutton(pSimAlg,'Text','Add echo', ...
+    'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
+    'ButtonPushedFcn',@(src,event) addEcho());
 %-----------------------------------------------------------------------------------------%
     % ===== Nested functions =====
+    % === File Handling ===
     function loadFile(type)
         [file,path] = uigetfile({'*.*'});
         if isequal(file,0), return; end
@@ -186,6 +225,18 @@ function passive_radar_app
         %plot_spectrum(data.ref,data.params.fs);
     end
 
+    function saveFile()
+        [file,path] = uiputfile('*.bin','Save simulated signal as',...
+            data.simulation.params.SaveFile);
+        if isequal(file,0)
+            disp('User canceled file selection');
+        else
+            data.simulation.params.SaveFile = fullfile(path,file);
+            fprintf("Save file set to: %s\n", data.simulation.params.SaveFile);
+        end
+    end
+    
+    % === Parameters handling
     function setParam(name,val,dest)
         switch dest
             case 'data.params'
@@ -195,8 +246,8 @@ function passive_radar_app
         end
         updateStatus();
     end
-    
-
+        
+    % === CAF Algorithms
     function runCAF(mode)
         if ~isfield(data,'ref') || ~isfield(data,'surv')
             uialert(fig,'Załaduj pliki!','Błąd'); return;
@@ -293,20 +344,7 @@ function passive_radar_app
         end
     end
     
-    function simulationGenSig()
-        fprintf("Simulation function called\n");
-        data.simulation.params.OFDM_MODE = '2k';
-        sim_sig = runDVBTsim(data.simulation.params.fs, ...
-            data.simulation.params.Cyclic_Prefix, ...
-            data.simulation.params.Duration,'2k');
-        
-        destDir = 'data/DVBT_signals/';
-        fname = [destDir 'sig_sim_iq.bin'];
-        save_comlex_binary(sim_sig,fname);
-        fprintf("File %s saved\n",fname);
-        
-    end
-    % --- History management ---
+    % === History management ===
     function addToHistory(caf,surv_state,tag)
         entry.caf = caf;
         entry.surv = surv_state;
@@ -344,9 +382,50 @@ function passive_radar_app
         data.histTitles(pos) = [];
         lstHistory.Items = data.histTitles;
     end
-    % --- Simulation helper ---
+    
+    % === Simulation helper ===
+    function simulationGenSig()
+        fprintf("Simulation function called\n");
+    
+        % Map cyclic prefix string → numeric length
+        switch data.simulation.params.OFDM_Mode
+            case '2k'
+                Nfft = 2048;
+            case '8k'
+                Nfft = 8192;
+        end
+    
+        switch data.simulation.params.Cyclic_Prefix
+            case '0',    cpLen = 0;
+            case '1/4',  cpLen = Nfft/4;
+            case '1/8',  cpLen = Nfft/8;
+            case '1/16', cpLen = Nfft/16;
+            case '1/32', cpLen = Nfft/32;
+        end
+    
+        sim_sig = runDVBTsim(data.simulation.params.fs, ...
+            cpLen, ...
+            data.simulation.params.Duration, ...
+            data.simulation.params.OFDM_Mode);
+    
+        fname = data.simulation.params.SaveFile;
+        save_comlex_binary(sim_sig,fname);
+        fprintf("File %s saved\n",fname);
+    end
+    
+    function addEcho()
+        fname = data.simulation.params.SaveFile;
+        fs = data.simulation.params.fs;
+        range_m = data.simulation.params.Echo_position;
+        velocity_ms = data.simulation.params.Echo_velocity;
+        fc = data.simulation.params.fc;
+        atten = data.simulation.params.Attenuation;
+        [x_ref, x_surv] = simulate_target_ref_surv_signals(fname,fs, ...
+            range_m,velocity_ms,fc,atten);
+        fprintf("Add echo called\n");
+    end
 
-        % --- Plot helper ---
+    % === Plot helper ===
     function plotCAF(caf,delay_axis,doppler_axis,ttl)
         if nargin < 2 || isempty(delay_axis)
             delay_axis = 1:size(caf,1);
@@ -390,19 +469,22 @@ function passive_radar_app
         if isfield(d,field), s = d.(field); else, s = '(n/a)'; end
     end
 
-    % CLim helpers
+    % === CLim helpers ===
     function setCLimManual()
         ax.CLim = [editCmin.Value editCmax.Value];
         chkAuto.Value = false;
     end
+        
     sliderMin.ValueChangedFcn = @(~,~) updateCLimFromSliders();
     sliderMax.ValueChangedFcn = @(~,~) updateCLimFromSliders();
     chkAuto.ValueChangedFcn   = @(~,~) updateCAFScaling();
+    
     function updateCAFScaling()
         if chkAuto.Value && isfield(data,'lastCAF')
             ax.CLim = [mean(data.lastCAF(:)) 0];
         end
     end
+    
     function updateCLimFromSliders()
         ax.CLim = [sliderMin.Value sliderMax.Value];
         chkAuto.Value = false;

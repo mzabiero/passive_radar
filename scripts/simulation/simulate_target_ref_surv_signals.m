@@ -16,12 +16,13 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(infile, fs, range_m,
     c = 3e8;  % speed of light [m/s]
 
     % --- read input file ---
-    fid = fopen(infile,'rb');
-    raw = fread(fid,'float32');
-    fclose(fid);
-
-    raw = reshape(raw,2,[]);
-    data = complex(raw(1,:), raw(2,:)).';   % column vector
+    data = read_complex_binary(infile);
+    % fid = fopen(infile,'rb');
+    % raw = fread(fid,'float32');
+    % fclose(fid);
+    % 
+    % raw = reshape(raw,2,[]);
+    % data = complex(raw(1,:), raw(2,:)).';   % column vector
     N = length(data);
 
     % --- reference signal ---
@@ -47,21 +48,8 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(infile, fs, range_m,
     n = (0:length(x_surv)-1).';
     doppler_phase = exp(1j*2*pi*dopplerHz*n/fs);
     x_surv = atten * x_surv .* doppler_phase;
+    
+    sim_save_del(infile,x_ref,x_surv); 
 
-    % --- save to files ---
-    [pathstr,name] = fileparts(infile);
-    outRef = fullfile(pathstr, [name '_ref.dat']);
-    outSurv = fullfile(pathstr, [name '_surv.dat']);
-
-    % save reference
-    fid = fopen(outRef,'wb');
-    fwrite(fid, [real(x_ref).'; imag(x_ref).'], 'float32');
-    fclose(fid);
-
-    % save surveillance
-    fid = fopen(outSurv,'wb');
-    fwrite(fid, [real(x_surv).'; imag(x_surv).'], 'float32');
-    fclose(fid);
-
-    fprintf('Saved:\n  %s\n  %s\n', outRef, outSurv);
+    
 end
