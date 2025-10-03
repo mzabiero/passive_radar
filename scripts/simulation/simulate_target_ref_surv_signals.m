@@ -21,7 +21,7 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
 %     x_surv - surveillance signal (delayed, Doppler-shifted echo)
 
     c = 3e8;  % speed of light [m/s]
-    dpi_atten = 0.9;
+    dpi_atten = 0.999;
 
     % --- read input file ---
     %data = read_complex_binary(infile);
@@ -37,7 +37,7 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
     clutter = struct();
     clutter.isClutter = isClutter;
     clutter.power = 0.05;
-    clutter.num = 1;
+    clutter.num = 5;
     clutter.spread = [0.5 1];
 
     % --- reference signal ---

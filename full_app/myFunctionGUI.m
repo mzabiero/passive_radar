@@ -109,14 +109,14 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) delHistory());
 
     % =================== Center column =====================
-    %cengerP = uipanel(fig,"Title","Plotting Panel","Position",[leftW+2*gap gap centerW hClim+hAxes+2*gap]);
-    ax = uiaxes(fig,'Position',[centerX yAxes centerW hAxes]);
+    centerP = uipanel(fig,"Title","Plotting Panel","Position",[leftW+2*gap gap centerW hClim+hAxes+gap]);
+    ax = uiaxes(centerP,'Position',[gap gap+hClim centerW-(4*gap) hAxes-gap]);
     title(ax,'CAF');
     xlabel(ax,'Bistatic velocity (m/s)');
     ylabel(ax,'Bistatic range (km)');
 
-    pClim = uipanel(fig,'Title','Scaling C axis',...
-        'Position',[centerX yClim centerW hClim]);
+    pClim = uipanel(centerP,'Title','Scaling C axis',...
+        'Position',[gap gap centerW-(4*gap) hClim]);
 
                     % === CLim controls ===
     uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
@@ -159,7 +159,8 @@ function passive_radar_app
         'Attenuation',0.5, ...
         'DPI', 0, ...
         'Clutter',0);  % default save path
-    
+    data.simulation.x_ref;
+    data.simulation.x_surv;
     sim_fields = fieldnames(data.simulation.params);
 
     y =hSimParam-50;
@@ -217,6 +218,9 @@ function passive_radar_app
     uibutton(pSimAlg,'Text','Save signals to files', ...
     'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
     'ButtonPushedFcn',@(src,event) saveSimToFiles());
+
+    simWorkspace = uitextarea(pSimStatus,'Position',[0 0 rightW hSimStatus-2*gap]);
+
 %-----------------------------------------------------------------------------------------%
     % ===== Nested functions =====
 
@@ -424,6 +428,7 @@ function passive_radar_app
             data.simulation.params.Duration, ...
             data.simulation.params.OFDM_Mode);
         data.simulation.data = sim_sig;
+        updateSimWorkspace();
     end
     
     function addEcho()
@@ -445,6 +450,7 @@ function passive_radar_app
         data.simulation.x_surv = x_surv;
         
         fprintf("Add echo called\n");
+        updateSimWorkspace();
     end
 
     % === Plot helper ===
@@ -487,8 +493,15 @@ function passive_radar_app
         txtStatus.Value = lines;
     end
 
-    function updateWorkspace()
-
+    function updateSimWorkspace()
+        lines = {};
+        if isfield(data.simulation, 'x_ref')
+            lines{1} = sprintf('Simulated signal: %f  (%d samples)', ...
+                    data.simulation.params.fs, length(data.simulation.x_ref));
+        else
+            lines{1} = 'Surv file: not loaded';
+        end
+            simWorkspace.Value = lines;
     end
     function s = safeStr(d,field)
         if isfield(d,field), s = d.(field); else, s = '(n/a)'; end
