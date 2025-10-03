@@ -1,7 +1,7 @@
 function passive_radar_app
 
     % === Layout constants ===
-    figPos   = [100 100 2000 900];   % większe okno
+    figPos   = [100 100 2000 900];
     gap      = 10;
     vert_gap = 20;
     
@@ -40,7 +40,7 @@ function passive_radar_app
     
     % Global data
     data = struct();
-    data.history = {};   % <- tu przechowujemy wszystkie wyniki
+    data.history = {};
     data.histTitles = {};
     data.simulation = {};
     
@@ -109,6 +109,7 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) delHistory());
 
     % =================== Center column =====================
+    %cengerP = uipanel(fig,"Title","Plotting Panel","Position",[leftW+2*gap gap centerW hClim+hAxes+2*gap]);
     ax = uiaxes(fig,'Position',[centerX yAxes centerW hAxes]);
     title(ax,'CAF');
     xlabel(ax,'Bistatic velocity (m/s)');
@@ -144,9 +145,9 @@ function passive_radar_app
     
                     % --- Simulation parameters ---
     sim_labels = {'fs (Hz)','fc (Hz)','Cyclic Prefix','OFDM Mode','Duration (s)',...
-              'Echo position (m)','Echo velocity (m/s)','Attenuation'};
+              'Echo position (m)','Echo velocity (m/s)','Attenuation','DPI','Clutter'};
     sim_defaults = {10e6, 650e6, '1/4', '2k', 0.1, ...
-                2000, 100, 0.5};
+                2000, 100, 0.5, 0, 0};
     data.simulation.params = struct( ...
         'fs', 10e6, ...
         'fc', 650e6, ...
@@ -155,7 +156,9 @@ function passive_radar_app
         'Duration',0.1, ...
         'Echo_position',2000, ...
         'Echo_velocity',100, ...
-        'Attenuation',0.5);  % default save path
+        'Attenuation',0.5, ...
+        'DPI', 0, ...
+        'Clutter',0);  % default save path
     
     sim_fields = fieldnames(data.simulation.params);
 
@@ -180,7 +183,13 @@ function passive_radar_app
                     'Items',{'2k','8k'}, ...
                     'Value',sim_defaults{4}, ...
                     'Position',[labelW+gap y editFieldW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam('OFDM_Mode',src.Value,'data.simulation.params'));    
+                    'ValueChangedFcn',@(src,event) setParam('OFDM_Mode',src.Value,'data.simulation.params'));
+            case 'DPI'
+                uicheckbox(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22],...
+                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
+            case 'Clutter'
+                uicheckbox(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
+                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
             otherwise
                 uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
                     'HorizontalAlignment','left');
@@ -205,8 +214,12 @@ function passive_radar_app
     uibutton(pSimAlg,'Text','Add echo', ...
     'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
     'ButtonPushedFcn',@(src,event) addEcho());
+    uibutton(pSimAlg,'Text','Save signals to files', ...
+    'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
+    'ButtonPushedFcn',@(src,event) saveSimToFiles());
 %-----------------------------------------------------------------------------------------%
     % ===== Nested functions =====
+
     % === File Handling ===
     function loadFile(type)
         [file,path] = uigetfile({'*.*'});
@@ -224,7 +237,6 @@ function passive_radar_app
         updateStatus();
         %plot_spectrum(data.ref,data.params.fs);
     end
-
     function saveFile()
         [file,path] = uiputfile('*.bin','Save simulated signal as',...
             data.simulation.params.SaveFile);
@@ -235,7 +247,11 @@ function passive_radar_app
             fprintf("Save file set to: %s\n", data.simulation.params.SaveFile);
         end
     end
-    
+
+    function saveSimToFiles()
+        sim_save_del(data.simulation.params.SaveFile, ...
+            data.simulation.x_ref, data.simulation.x_surv);
+    end
     % === Parameters handling
     function setParam(name,val,dest)
         switch dest
@@ -407,21 +423,27 @@ function passive_radar_app
             cpLen, ...
             data.simulation.params.Duration, ...
             data.simulation.params.OFDM_Mode);
-    
-        fname = data.simulation.params.SaveFile;
-        save_comlex_binary(sim_sig,fname);
-        fprintf("File %s saved\n",fname);
+        data.simulation.data = sim_sig;
     end
     
     function addEcho()
-        fname = data.simulation.params.SaveFile;
+
+        params = data.simulation.params;
+        fname = params.SaveFile;
         fs = data.simulation.params.fs;
         range_m = data.simulation.params.Echo_position;
         velocity_ms = data.simulation.params.Echo_velocity;
         fc = data.simulation.params.fc;
         atten = data.simulation.params.Attenuation;
-        [x_ref, x_surv] = simulate_target_ref_surv_signals(fname,fs, ...
-            range_m,velocity_ms,fc,atten);
+        raw_signal = data.simulation.data;
+        dpi = data.simulation.params.DPI;
+        clutter = data.simulation.params.Clutter;
+
+        [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
+            range_m,velocity_ms,fc,atten,fname,dpi,clutter);
+        data.simulation.x_ref = x_ref;
+        data.simulation.x_surv = x_surv;
+        
         fprintf("Add echo called\n");
     end
 
@@ -465,6 +487,9 @@ function passive_radar_app
         txtStatus.Value = lines;
     end
 
+    function updateWorkspace()
+
+    end
     function s = safeStr(d,field)
         if isfield(d,field), s = d.(field); else, s = '(n/a)'; end
     end

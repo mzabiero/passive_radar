@@ -1,29 +1,44 @@
-function [x_ref, x_surv] = simulate_target_ref_surv_signals(infile, fs, range_m, velocity_ms, fc, atten)
+function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, velocity_ms, fc,...
+    atten, infile,dpi,isClutter)
 %CREATE_REF_SURV_FROM_FILE  Generate reference and surveillance signals
-%   [x_ref, x_surv] = create_ref_surv_from_file(infile, fs, range_m, velocity_ms, fc, atten)
+%   [x_ref, x_surv] = create_ref_surv_from_file(data, fs, range_m, velocity_ms, fc, atten, infile)
 %
-%   infile      - input .dat file with IQ data (float32 interleaved)
+%   data        - input data that's processed to create ref and surv
+%   signals
 %   fs          - sampling rate in Hz
 %   range_m     - echo delay in meters
 %   velocity_ms - radial velocity of target in m/s
 %   fc          - carrier frequency in Hz (e.g. 650e6 for DVB-T channel)
 %   atten       - attenuation factor for echo (0..1)
+%   infile      - name of the file that names are going to be appended
+%   dpi         - determines if direct path interferance is added to the
+%  surv signal
+%   clutter     - determines if clutter reflections and echoes are added
+%  to the surv signal
 %
 %   Outputs:
 %     x_ref - reference signal (same as input)
 %     x_surv - surveillance signal (delayed, Doppler-shifted echo)
 
     c = 3e8;  % speed of light [m/s]
+    dpi_atten = 0.9;
 
     % --- read input file ---
-    data = read_complex_binary(infile);
+    %data = read_complex_binary(infile);
     % fid = fopen(infile,'rb');
     % raw = fread(fid,'float32');
     % fclose(fid);
     % 
     % raw = reshape(raw,2,[]);
     % data = complex(raw(1,:), raw(2,:)).';   % column vector
+
     N = length(data);
+
+    clutter = struct();
+    clutter.isClutter = isClutter;
+    clutter.power = 0.05;
+    clutter.num = 1;
+    clutter.spread = [0.5 1];
 
     % --- reference signal ---
     x_ref = data;
@@ -48,8 +63,13 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(infile, fs, range_m,
     n = (0:length(x_surv)-1).';
     doppler_phase = exp(1j*2*pi*dopplerHz*n/fs);
     x_surv = atten * x_surv .* doppler_phase;
-    
-    sim_save_del(infile,x_ref,x_surv); 
-
+    % Add DPI
+    if(dpi == 1)
+        x_surv = add_dpi(dpi_atten,x_ref,x_surv);
+    end
+    % Add Clutter echoes
+    if(clutter.isClutter == 1)
+        x_surv = add_clutter(x_surv,fs,clutter);
+    end
     
 end
