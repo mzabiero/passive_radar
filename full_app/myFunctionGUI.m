@@ -1,5 +1,4 @@
 function passive_radar_app
-
     % === Layout constants ===
     figPos   = [100 100 2000 900];
     gap      = 10;
@@ -8,8 +7,8 @@ function passive_radar_app
     % left panel
     leftW    = 380;
         hFiles   = 360;              
-        hActions = 240;
-        hStatus  = 260;
+        hActions = 270;
+        hStatus  = 230;
         
         yStatus  = gap;
         yActions = yStatus + hStatus + gap;
@@ -44,6 +43,11 @@ function passive_radar_app
     data.histTitles = {};
     data.simulation = {};
     
+    % Initialization of parallel computing and simulation
+    if isempty(gcp('nocreate'))   % check if pool exists
+        parpool('threads');       % or 'local' cluster, or specify #workers
+    end
+
     
     %--------------------------------------------------------------%
     % ================== Left column panels ============================
@@ -92,7 +96,9 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) runCAF('wide'));
     uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-180 340 30],...
         'ButtonPushedFcn',@(src,event) runCLEAN());
-    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-220 340 30],...
+    uibutton(pActions,'Text','CAF','Position',[20 hActions-220 340 30],...
+        'ButtonPushedFcn',@(src,event) runCAF('Normal'));
+    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-260 340 30],...
         'ButtonPushedFcn',@(src,event) plotSpectrum());
     
                     % Status textarea
@@ -110,7 +116,7 @@ function passive_radar_app
 
     % =================== Center column =====================
     centerP = uipanel(fig,"Title","Plotting Panel","Position",[leftW+2*gap gap centerW hClim+hAxes+gap]);
-    ax = uiaxes(centerP,'Position',[gap gap+hClim centerW-(4*gap) hAxes-gap]);
+    ax = uiaxes(centerP,'Position',[gap gap+hClim centerW-yAxes hAxes-gap]);
     title(ax,'CAF');
     xlabel(ax,'Bistatic velocity (m/s)');
     ylabel(ax,'Bistatic range (km)');
@@ -159,8 +165,8 @@ function passive_radar_app
         'Attenuation',0.5, ...
         'DPI', 0, ...
         'Clutter',0);  % default save path
-    data.simulation.x_ref;
-    data.simulation.x_surv;
+    data.simulation.x_ref = 0;
+    data.simulation.x_surv = 0;
     sim_fields = fieldnames(data.simulation.params);
 
     y =hSimParam-50;
@@ -297,6 +303,8 @@ function passive_radar_app
                     data.params.filtOrder_wide,...
                     data.params.stepSize_wide,...
                     data.params.blockLength_wide);
+            otherwise
+                surv_clean = surv_in;
         end
 
         [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R);
