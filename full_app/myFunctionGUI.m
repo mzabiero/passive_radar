@@ -66,7 +66,7 @@ function passive_radar_app
 
                     % === Parameters ===
     labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
-              'FiltClose: Order','Step','BlockLen',...
+              'FiltNear: Order','Step','BlockLen',...
               'FiltWide: Order','Step','BlockLen'};
     defaults = {10e6, 650e6, 200, 512, 100,...
                 10, 7e-2, 8192,...
@@ -149,11 +149,13 @@ function passive_radar_app
     pSimAlg = uipanel(fig,'Title','Simulation Algorithms','Position',[rightX ySimButtons rightW hSimAlgorithms]);
     pSimStatus  = uipanel(fig,'Title','Simulation Workspace','Position',[rightX ySimStatus rightW hSimStatus]);
     
+
+    
                     % --- Simulation parameters ---
     sim_labels = {'fs (Hz)','fc (Hz)','Cyclic Prefix','OFDM Mode','Duration (s)',...
-              'Echo position (m)','Echo velocity (m/s)','Attenuation','DPI','Clutter'};
+              'Echo position (m)','Echo velocity (m/s)','Attenuation','DPI','Clutter', 'File name'};
     sim_defaults = {10e6, 650e6, '1/4', '2k', 0.1, ...
-                2000, 100, 0.5, 0, 0};
+                2000, 100, 0.5, 0, 0, 'sig_sim_iq'};
     data.simulation.params = struct( ...
         'fs', 10e6, ...
         'fc', 650e6, ...
@@ -164,12 +166,15 @@ function passive_radar_app
         'Echo_velocity',100, ...
         'Attenuation',0.5, ...
         'DPI', 0, ...
-        'Clutter',0);  % default save path
+        'Clutter',0, ...
+        'File_Name', 'sig_sim_iq');  % default save path
     data.simulation.x_ref = 0;
     data.simulation.x_surv = 0;
+    data.simulation.hist = {};
+    data.simulation.active = struct('x_ref',0,'x_surv',0);
     sim_fields = fieldnames(data.simulation.params);
 
-    y =hSimParam-50;
+    y = hSimParam-50;
     labelW = rightW/2 - gap;
     editFieldW = labelW;
     
@@ -197,6 +202,12 @@ function passive_radar_app
             case 'Clutter'
                 uicheckbox(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
                     'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
+            case 'File_Name'
+                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
+                    'HorizontalAlignment','left');
+                uieditfield(pSimParam,'Text','Value',sim_defaults{i}, ...
+                    'Position',[labelW+gap y editFieldW 22], ...
+                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
             otherwise
                 uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
                     'HorizontalAlignment','left');
@@ -208,12 +219,7 @@ function passive_radar_app
         if y < 10, break; end
     end
     
-    data.simulation.params.SaveFile = 'data//mat/DVBT_signals/sig_sim_iq.bin';
-
-    uibutton(pSimParam,'Text','Select Output File', ...
-    'Position',[gap 10 rightW-2*gap 30], ...
-    'ButtonPushedFcn',@(src,event) saveFile());
-
+    data.simulation.params.add_echo_counter = 1;
     uibutton(pSimAlg,'Text','Generate simulated signal', ...
     'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
     'ButtonPushedFcn',@(src,event) simulationGenSig());
@@ -224,9 +230,13 @@ function passive_radar_app
     uibutton(pSimAlg,'Text','Save signals to files', ...
     'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
     'ButtonPushedFcn',@(src,event) saveSimToFiles());
-
-    simWorkspace = uitextarea(pSimStatus,'Position',[0 0 rightW hSimStatus-2*gap]);
-
+    
+    uibutton(fig,'Text','Refresh','Position',[rightX+gap 45+gap rightW-2*gap 30],...
+    'ButtonPushedFcn',@(src,event) refreshSimWorkspace(pSimStatus));
+    uibutton(fig,'Text','Set signals active','Position',[rightX+gap 15 rightW-2*gap 30],...
+    'ButtonPushedFcn',@(src,event) setHistActive());
+    
+    
 %-----------------------------------------------------------------------------------------%
     % ===== Nested functions =====
 
@@ -249,18 +259,20 @@ function passive_radar_app
     end
     function saveFile()
         [file,path] = uiputfile('*.bin','Save simulated signal as',...
-            data.simulation.params.SaveFile);
+            data.simulation.params.File_Name);
         if isequal(file,0)
             disp('User canceled file selection');
         else
-            data.simulation.params.SaveFile = fullfile(path,file);
-            fprintf("Save file set to: %s\n", data.simulation.params.SaveFile);
+            data.simulation.params.File_Name = fullfile(path,file);
+            fprintf("Save file set to: %s\n", data.simulation.params.File_Name);
         end
     end
 
     function saveSimToFiles()
-        sim_save_del(data.simulation.params.SaveFile, ...
-            data.simulation.x_ref, data.simulation.x_surv);
+        saveDir = 'data/simulation';
+        sim_save_del(data.simulation.active.name, ...
+            data.simulation.active.x_ref, data.simulation.active.x_surv,saveDir);
+        
     end
     % === Parameters handling
     function setParam(name,val,dest)
@@ -412,8 +424,10 @@ function passive_radar_app
     end
     
     % === Simulation helper ===
-    function simulationGenSig()
-        fprintf("Simulation function called\n");
+    function sim_sig = simulationGenSig()
+
+        
+        fprintf("\nSimulation function called\n");
     
         % Map cyclic prefix string → numeric length
         switch data.simulation.params.OFDM_Mode
@@ -435,31 +449,38 @@ function passive_radar_app
             cpLen, ...
             data.simulation.params.Duration, ...
             data.simulation.params.OFDM_Mode);
-        data.simulation.data = sim_sig;
-        updateSimWorkspace();
+        
+        %entry.x_surv = sim_sig;
+        %entry.name = data.simulation.params.File_Name;
+        %addSimHistory(entry,1);
+        %updateSimWorkspace();
     end
     
     function addEcho()
-
+        x_ref = simulationGenSig();
+        fprintf("\nAdd echo called\n");
         params = data.simulation.params;
-        fname = params.SaveFile;
+        fname = params.File_Name;
         fs = data.simulation.params.fs;
         range_m = data.simulation.params.Echo_position;
         velocity_ms = data.simulation.params.Echo_velocity;
         fc = data.simulation.params.fc;
         atten = data.simulation.params.Attenuation;
-        raw_signal = data.simulation.data;
         dpi = data.simulation.params.DPI;
         clutter = data.simulation.params.Clutter;
-
+        counter = data.simulation.params.add_echo_counter;
+        raw_signal = x_ref;
+        
         [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
             range_m,velocity_ms,fc,atten,fname,dpi,clutter);
-        data.simulation.x_ref = x_ref;
-        data.simulation.x_surv = x_surv;
-        
-        fprintf("Add echo called\n");
+        data.simulation.hist{counter}.x_ref = x_ref;
+        data.simulation.hist{counter}.x_surv = x_surv;
+        data.simulation.hist{counter}.name = data.simulation.params.File_Name;
         updateSimWorkspace();
+        data.simulation.params.add_echo_counter = counter+1;
     end
+
+
 
     % === Plot helper ===
     function plotCAF(caf,delay_axis,doppler_axis,ttl)
@@ -501,19 +522,78 @@ function passive_radar_app
         txtStatus.Value = lines;
     end
 
+    line_counter = 0;
+    sim_lines = {};
+    y_start = 50;
+    line_height = 30;
+    gap = 5;
+
     function updateSimWorkspace()
-        lines = {};
-        if isfield(data.simulation, 'x_ref')
-            lines{1} = sprintf('Simulated signal: %f  (%d samples)', ...
-                    data.simulation.params.fs, length(data.simulation.x_ref));
-        else
-            lines{1} = 'Surv file: not loaded';
-        end
-            simWorkspace.Value = lines;
+        line_counter = line_counter + 1;
+        
+        y_pos = hSimStatus - y_start - (line_counter-1)*(line_height + gap);
+    
+        data.simulation.sim_lines{line_counter} = sim_workspace_line_create(pSimStatus, ...
+            [0, y_pos, rightW-2*gap, line_height], ...
+            data.simulation.params.File_Name, data.simulation.params, ...
+            @onDeleteLine);
+        
+    
     end
+    
+    function onDeleteLine(signalName)
+        % Find index of deleted line
+        idx = find(cellfun(@(L) isfield(L,'signalName') && strcmp(L.signalName,signalName), sim_lines));
+        if isempty(idx), return; end
+    
+        % Delete from list
+        sim_lines(idx) = [];
+        line_counter = numel(sim_lines);
+    
+        % Re-stack remaining lines
+        for k = 1:numel(sim_lines)
+            newY = hSimStatus - y_start - (k-1)*(line_height + gap);
+            updateLinePosition(sim_lines{k}, newY);
+        end
+    end
+
+    function updateLinePosition(lineStruct, newY)
+
+        if isempty(lineStruct) || ~isstruct(lineStruct)
+            return;
+        end
+        fns = fieldnames(lineStruct);
+        for i = 1:numel(fns)
+            h = lineStruct.(fns{i});
+            if ishghandle(h)
+                pos = h.Position;
+                pos(2) = newY;
+                h.Position = pos;
+            end
+        end
+    end
+
+    function refreshSimWorkspace(parent)
+        delete(allchild(parent));
+        data.simulation.hist = {};
+        line_counter = 0;
+        data.simulation.params.add_echo_counter= 1;
+        data.simulation.sim_lines = {};
+    end
+
+    function setHistActive()
+        for i=1:numel(data.simulation.hist)
+            if(data.simulation.sim_lines{i}.isActive.Value)
+                data.simulation.active = data.simulation.hist{i};
+                return;
+            end
+        end
+    end
+
     function s = safeStr(d,field)
         if isfield(d,field), s = d.(field); else, s = '(n/a)'; end
     end
+
 
     % === CLim helpers ===
     function setCLimManual()

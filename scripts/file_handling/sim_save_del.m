@@ -1,8 +1,11 @@
-function sim_save_del(infile,x_ref,x_surv)
-
-    [pathstr,name] = fileparts(infile);
-    outRef = fullfile(pathstr, [name '_ref.dat']);
-    outSurv = fullfile(pathstr, [name '_surv.dat']);
+function sim_save_del(infile,x_ref,x_surv, saveDir)
+    if ~exist(saveDir, 'dir')
+        mkdir(saveDir);
+    end
+    
+    [~,name] = fileparts(infile);
+    outRef = fullfile(saveDir, [name '_ref.dat']);
+    outSurv = fullfile(saveDir, [name '_surv.dat']);
 
     save_comlex_binary(x_ref,outRef);
     save_comlex_binary(x_surv,outSurv);

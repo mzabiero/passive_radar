@@ -82,7 +82,7 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
     % end
 
     % 6) estimate complex amplitude (least-squares projection)
-    denom = (echo_model' * echo_model); % scalar (conj(echo_model)'*echo_model)
+    denom = (conj(echo_model)' * echo_model); % scalar (conj(echo_model)'*echo_model)
     if abs(denom) < eps
         alpha_hat = 0;
     else
