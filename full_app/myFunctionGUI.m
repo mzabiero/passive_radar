@@ -140,7 +140,7 @@ function passive_radar_app
     uilabel(pClim,'Text','Max slider','Position',[420 20 70 22]);
     sliderMax = uislider(pClim,'Position',[500 30 220 3],...
         'Limits',[-80 0],'Value',0);
-    chkAuto = uicheckbox(pClim,'Text','Auto (mean→0)',...
+    chkAuto = uicheckbox(pClim,'Text','Auto (mean→max)',...
         'Position',[740 60 150 22],'Value',true);
 
 
@@ -491,7 +491,7 @@ function passive_radar_app
         imagesc(ax,doppler_axis,delay_axis,caf); axis(ax,'xy');
         colormap(ax,'jet'); colorbar(ax);
         if chkAuto.Value
-            ax.CLim = [mean(caf(:)), 0];
+            ax.CLim = [mean(caf(:)), max(caf(:))];
         else
             ax.CLim = [editCmin.Value, editCmax.Value];
         end
@@ -607,7 +607,7 @@ function passive_radar_app
     
     function updateCAFScaling()
         if chkAuto.Value && isfield(data,'lastCAF')
-            ax.CLim = [mean(data.lastCAF(:)) 0];
+            ax.CLim = [mean(data.lastCAF(:)) max(data.lastCAF(:))];
         end
     end
     

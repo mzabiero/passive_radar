@@ -1,4 +1,4 @@
-function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
+function [caf_matrix_dB, delay_axis_km,doppler_axis_ms] = ...
     CAF(x_ref,x_surv,fs,fc,max_delay,doppler_bins, R)
 
 
@@ -23,8 +23,8 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
         caf_matrix(m+1,:) = abs(ym_fft);   
     end
 
-    caf_matrix_norm = caf_matrix / max(caf_matrix(:));  % normalizacja
-    caf_matrix_dB = mag2db(abs(caf_matrix_norm));
+    %caf_matrix_norm = caf_matrix / max(caf_matrix(:));  % normalizacja
+    caf_matrix_dB = mag2db(abs(caf_matrix));
 
     
     %delay_axis = linspace(-max_delay/2, max_delay/2, doppler_bins);
@@ -34,19 +34,19 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis] = ...
     f_dec = fs/R;
     k = (-doppler_bins/2):(doppler_bins/2-1);
     fd = (f_dec/doppler_bins)*k;
-    doppler_axis =  (lambda/2).*fd;
+    doppler_axis_ms =  (lambda/2).*fd;
 
 
     % Wybranie interesującego zakresu Dopplera
     % doppler_limit = 300;  % m/s
-    % mask = abs(doppler_axis) <= doppler_limit;
+    % mask = abs(doppler_axis_ms) <= doppler_limit;
     % 
-    % doppler_axis = doppler_axis(mask);
+    % doppler_axis_ms = doppler_axis_ms(mask);
     % caf_matrix = caf_matrix_dB(:,mask);
     % disp(".")
     % Rysowanie
     % figure;
-    % imagesc(doppler_axis, delay_axis_km, caf_matrix_dB);
+    % imagesc(doppler_axis_ms, delay_axis_km, caf_matrix_dB);
     % clim([mean(caf_matrix_dB(:)), 0])
     % %xlim([-doppler_limit doppler_limit]);
     % xlabel('Bistatic velocity, V (m/s)');
