@@ -1,14 +1,14 @@
 function passive_radar_app
     % === Layout constants ===
-    figPos   = [100 100 2000 900];
+    figPos   = [100 100 2000 1000];
     gap      = 10;
     vert_gap = 20;
     
     % left panel
     leftW    = 380;
         hFiles   = 360;              
-        hActions = 270;
-        hStatus  = 230;
+        hActions = 320;
+        hStatus  = 280;
         
         yStatus  = gap;
         yActions = yStatus + hStatus + gap;
@@ -21,7 +21,7 @@ function passive_radar_app
         hSimAlgorithms = 240;
         hSimStatus  = 260;
 
-        ySimStatus  = gap;
+        ySimStatus  = gap+100;
         ySimButtons = ySimStatus + hSimStatus + gap;
         ySimParam   = ySimButtons + hSimAlgorithms + gap;
 
@@ -30,6 +30,8 @@ function passive_radar_app
     centerW   = figPos(3) - leftW - rightW- 4*gap;
         hClim    = 110;
         yClim    = gap;
+        terminalW= centerW*(1/5);
+        terminalH= hClim;
         yAxes    = yClim + hClim + gap;
         hAxes    = figPos(4) - yAxes - gap;
         
@@ -100,7 +102,8 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) runCAF('Normal'));
     uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-260 340 30],...
         'ButtonPushedFcn',@(src,event) plotSpectrum());
-    
+    uibutton(pActions,'Text','Correlation','Position',[20 hActions-300 340 30],...
+        'ButtonPushedFcn',@(src,event) runXcorr());
                     % Status textarea
     txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
         'Editable','off');
@@ -122,7 +125,7 @@ function passive_radar_app
     ylabel(ax,'Bistatic range (km)');
 
     pClim = uipanel(centerP,'Title','Scaling C axis',...
-        'Position',[gap gap centerW-(4*gap) hClim]);
+        'Position',[gap gap centerW-(4*gap)-terminalW hClim]);
 
                     % === CLim controls ===
     uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
@@ -142,7 +145,15 @@ function passive_radar_app
         'Limits',[-80 0],'Value',0);
     chkAuto = uicheckbox(pClim,'Text','Auto (mean→max)',...
         'Position',[740 60 150 22],'Value',true);
+    chkFixed = uicheckbox(pClim,'Text','C axis fixed (mean→0)',...
+        'Position',[740 30 150 22],'Value',false);
 
+                    % === Terminal panel ===
+    
+    pTerminal = uipanel(centerP,'Title','Log window',...
+        'Position',[centerW-(4*gap)-terminalW+2*gap gap terminalW terminalH]);
+    terminal = uitextarea(pTerminal,'Position',[0 0 terminalW terminalH-2*gap],...
+       'Editable','off');      
 
    % ================= Right column: Simulation panels ======================
     pSimParam   = uipanel(fig,'Title','Simulation Parameters','Position',[rightX ySimParam rightW hSimParam]);
@@ -218,27 +229,27 @@ function passive_radar_app
         y = y-26;
         if y < 10, break; end
     end
+   
+        data.simulation.params.add_echo_counter = 1;
+        uibutton(pSimAlg,'Text','Generate simulated signal', ...
+        'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
+        'ButtonPushedFcn',@(src,event) simulationGenSig());
     
-    data.simulation.params.add_echo_counter = 1;
-    uibutton(pSimAlg,'Text','Generate simulated signal', ...
-    'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
-    'ButtonPushedFcn',@(src,event) simulationGenSig());
-
-    uibutton(pSimAlg,'Text','Add echo', ...
-    'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
-    'ButtonPushedFcn',@(src,event) addEcho());
-    uibutton(pSimAlg,'Text','Save signals to files', ...
-    'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
-    'ButtonPushedFcn',@(src,event) saveSimToFiles());
-    
-    uibutton(fig,'Text','Refresh','Position',[rightX+gap 45+gap rightW-2*gap 30],...
-    'ButtonPushedFcn',@(src,event) refreshSimWorkspace(pSimStatus));
-    uibutton(fig,'Text','Set signals active','Position',[rightX+gap 15 rightW-2*gap 30],...
-    'ButtonPushedFcn',@(src,event) setHistActive());
-    
-    
+        uibutton(pSimAlg,'Text','Add echo', ...
+        'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
+        'ButtonPushedFcn',@(src,event) addEcho());
+        uibutton(pSimAlg,'Text','Save signals to files', ...
+        'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
+        'ButtonPushedFcn',@(src,event) saveSimToFiles());
+        
+        uibutton(fig,'Text','Refresh','Position',[rightX+gap 45+gap rightW-2*gap 30],...
+        'ButtonPushedFcn',@(src,event) refreshSimWorkspace(pSimStatus));
+        uibutton(fig,'Text','Set signals active','Position',[rightX+gap 15 rightW-2*gap 30],...
+        'ButtonPushedFcn',@(src,event) setHistActive());
+   
+        
 %-----------------------------------------------------------------------------------------%
-    % ===== Nested functions =====
+        % ===== Nested functions =====
 
     % === File Handling ===
     function loadFile(type)
@@ -257,6 +268,7 @@ function passive_radar_app
         updateStatus();
         %plot_spectrum(data.ref,data.params.fs);
     end
+    
     function saveFile()
         [file,path] = uiputfile('*.bin','Save simulated signal as',...
             data.simulation.params.File_Name);
@@ -395,6 +407,14 @@ function passive_radar_app
         lstHistory.Items = data.histTitles;
     end
 
+    function runXcorr()
+        [corr, lags] = xcorr(data.ref,data.lastSurv,data.params.max_delay);
+        corr = abs(corr)/max(abs(corr));
+        D = 3e8 * lags./ data.params.fs;
+        plot(D/1000, mag2db(abs(corr)));
+        fprintf("XCorr called\n");
+    end
+    
     function loadHistory()
         idx = lstHistory.Value;
         if isempty(idx), return; end
@@ -449,7 +469,9 @@ function passive_radar_app
             cpLen, ...
             data.simulation.params.Duration, ...
             data.simulation.params.OFDM_Mode);
-        
+        data.simulation.hist{data.simulation.params.add_echo_counter}.x_ref = sim_sig;
+
+        addEcho();
         %entry.x_surv = sim_sig;
         %entry.name = data.simulation.params.File_Name;
         %addSimHistory(entry,1);
@@ -457,8 +479,9 @@ function passive_radar_app
     end
     
     function addEcho()
-        x_ref = simulationGenSig();
+        %x_ref = simulationGenSig();
         fprintf("\nAdd echo called\n");
+
         params = data.simulation.params;
         fname = params.File_Name;
         fs = data.simulation.params.fs;
@@ -469,18 +492,28 @@ function passive_radar_app
         dpi = data.simulation.params.DPI;
         clutter = data.simulation.params.Clutter;
         counter = data.simulation.params.add_echo_counter;
-        raw_signal = x_ref;
         
-        [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
+        if(isfield(data.simulation.active,'x_ref'))
+            raw_signal = data.simulation.active.x_ref;
+            x_surv_first = data.simulation.active.x_surv;
+            signal_name = [data.simulation.active.name '_2'];
+            [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
             range_m,velocity_ms,fc,atten,fname,dpi,clutter);
+            x_surv = x_surv * x_surv_first;
+            data.simulation.hist{counter}.name = signal_name;
+            data.simulation.params.File_Name = signal_name;
+        else
+            raw_signal = data.simulation.hist{counter}.x_ref;       
+            [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
+            range_m,velocity_ms,fc,atten,fname,dpi,clutter);
+            data.simulation.hist{counter}.name = data.simulation.params.File_Name;
+        end
         data.simulation.hist{counter}.x_ref = x_ref;
         data.simulation.hist{counter}.x_surv = x_surv;
-        data.simulation.hist{counter}.name = data.simulation.params.File_Name;
+        
         updateSimWorkspace();
         data.simulation.params.add_echo_counter = counter+1;
     end
-
-
 
     % === Plot helper ===
     function plotCAF(caf,delay_axis,doppler_axis,ttl)
@@ -492,6 +525,8 @@ function passive_radar_app
         colormap(ax,'jet'); colorbar(ax);
         if chkAuto.Value
             ax.CLim = [mean(caf(:)), max(caf(:))];
+        elseif chkFixed.Value
+            ax.CLim = [mean(caf(:)), 0];
         else
             ax.CLim = [editCmin.Value, editCmax.Value];
         end
@@ -576,6 +611,7 @@ function passive_radar_app
     function refreshSimWorkspace(parent)
         delete(allchild(parent));
         data.simulation.hist = {};
+        data.simulation.active = 0;
         line_counter = 0;
         data.simulation.params.add_echo_counter= 1;
         data.simulation.sim_lines = {};
@@ -591,29 +627,37 @@ function passive_radar_app
     end
 
     function s = safeStr(d,field)
-        if isfield(d,field), s = d.(field); else, s = '(n/a)'; end
+        if isfield(d,field)
+            s = d.(field); 
+        else 
+            s = '(n/a)';
+        end
     end
-
 
     % === CLim helpers ===
     function setCLimManual()
         ax.CLim = [editCmin.Value editCmax.Value];
         chkAuto.Value = false;
+        chkFixed.Value = false;
     end
         
     sliderMin.ValueChangedFcn = @(~,~) updateCLimFromSliders();
     sliderMax.ValueChangedFcn = @(~,~) updateCLimFromSliders();
     chkAuto.ValueChangedFcn   = @(~,~) updateCAFScaling();
+    chkFixed.ValueChangedFcn  = @(~,~) updateCAFScaling();
     
     function updateCAFScaling()
         if chkAuto.Value && isfield(data,'lastCAF')
             ax.CLim = [mean(data.lastCAF(:)) max(data.lastCAF(:))];
+        elseif chkFixed.Value && isfield(data,'lastCAF')
+            ax.CLim = [mean(data.lastCAF(:)) 0];
         end
     end
     
     function updateCLimFromSliders()
         ax.CLim = [sliderMin.Value sliderMax.Value];
-        chkAuto.Value = false;
+        chkAuto.Value   = false;
+        chkFixed.Value  = false;
     end
 
 end
