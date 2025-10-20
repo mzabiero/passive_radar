@@ -25,7 +25,7 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis_ms] = ...
 
     %caf_matrix_norm = caf_matrix / max(caf_matrix(:));  % normalizacja
     caf_matrix_dB = mag2db(abs(caf_matrix));
-
+    max(caf_matrix_dB(:))
     
     %delay_axis = linspace(-max_delay/2, max_delay/2, doppler_bins);
     %delay_axis = (0:max_delay-1) * 3e8 / (fs * 1e3);  % [km]

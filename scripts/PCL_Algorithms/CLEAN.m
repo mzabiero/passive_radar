@@ -69,29 +69,12 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
     n = (0:length(x_surv)-1).';
     doppler_phase = exp(1j*2*pi*fd*n/fs);
     echo_model =x_surv_clean .* doppler_phase;
+
+    r = corrcoef([conj(echo_model) x_surv]);
+    ampl_model = r(2,1);
     
-    % echo_model = zeros(N,1);
-    % 
-    % if delay_samp < N
-    %     L = N - delay_samp; % number of nonzero samples after delay
-    %     % delayed reference multiplied by Doppler phase exp(j*2*pi*fd*t)
-    %     echo_model(delay_samp+1 : end) = x_ref(1:L) .* exp(1j*2*pi*fd/lambda*t_dec(1:L));
-    % else
-    %     % delay >= length -> no contribution
-    %     % echo_model remains zeros
-    % end
-
-    % 6) estimate complex amplitude (least-squares projection)
-    denom = (conj(echo_model)' * echo_model); % scalar (conj(echo_model)'*echo_model)
-    if abs(denom) < eps
-        alpha_hat = 0;
-    else
-        % projection of x_surv onto echo_model: alpha = (echo_model' * x_surv) / (echo_model' * echo_model)
-        alpha_hat = (echo_model' * x_surv) / denom;
-    end
-
     % 7) subtract estimated echo
-    echo_est = alpha_hat * echo_model;
+    echo_est = ampl_model * echo_model;
     x_surv_clean = x_surv - echo_est;
 
     % (optional) debug print

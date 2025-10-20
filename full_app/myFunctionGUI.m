@@ -346,7 +346,7 @@ function passive_radar_app
 
     function runCLEAN()
         if ~isfield(data,'lastCAF')
-            uialert(fig,'Najpierw uruchom CAF!','Błąd'); return;
+            uialert(fig,'First calculate CAF!','ERROR'); return;
         end
         [x_clean, r_km, v_ms] = CLEAN(data.lastCAF, data.ref, data.lastSurv,...
             data.params.fs, data.params.fc, data.params.max_delay,...
