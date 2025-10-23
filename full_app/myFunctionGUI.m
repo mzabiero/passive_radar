@@ -38,7 +38,7 @@ function passive_radar_app
    
     % === Main window ===
     fig = uifigure('Name','Passive Radar App','Position',figPos);
-    
+
     % Global data
     data = struct();
     data.history = {};
@@ -57,7 +57,7 @@ function passive_radar_app
     pFiles = uipanel(fig,'Title','Parameters','Position',[gap yFiles leftW hFiles]);
     pActions = uipanel(fig,'Title','Algorithms','Position',[gap yActions leftW hActions]);
     pStatus = uipanel(fig,'Title','Status / Workspace','Position',[gap yStatus leftW hStatus]);
-    
+
                     % === File pickers ===
     uibutton(pFiles,'Text','Choose ref',...
         'Position',[10 hFiles-60 160 30],...
