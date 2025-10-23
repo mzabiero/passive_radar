@@ -35,7 +35,7 @@ It uses two primary channels:
 The target range and velocity are estimated via the **Cross Ambiguity Function (CAF)**:
 
 \[
-CAF(\tau, f_d) = \int x_\text{ref}(t) \cdot x_\text{surv}^*(t - \tau) \, e^{-j2\pi f_d t} \, dt
+$$\mathrm{CAF}(\tau, f_d) = \int x_{\mathrm{ref}}(t)\, x_{\mathrm{surv}}^*(t-\tau)\, e^{-j2\pi f_d t}\, dt$$
 \]
 
 Where:
