@@ -165,7 +165,7 @@ The application provides an **interactive GUI** for:
 > **(Placeholder for future screenshots – replace below with actual images)**
 
 - **Main Window (Blank GUI)**  
-  ![Main GUI Screenshot](docs/screenshots/gui_blank.png)
+  ![Main GUI Screenshot](screenshots/gui_blank.png)
 
 - **After Filtering Steps**  
   ![Filtered CAF](docs/screenshots/after_filtering.png)
