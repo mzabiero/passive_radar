@@ -214,7 +214,7 @@ Will include:
 
 ## References
 
-1. Malanowski, M., Kulpa, K. *“Signal Processing in Passive Radar Systems”*. 
+1. M. Malanowski *“Signal Processing for Passive Bistatic Radar”*. 
 
 ---
 
