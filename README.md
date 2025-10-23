@@ -168,7 +168,8 @@ The application provides an **interactive GUI** for:
 
 - **Main Window (Blank GUI)**  
   ![Main GUI Screenshot](screenshots/gui_blank.png)
-
+- **FIrst unfiltered raw CAF**  
+  ![Raw CAF](screenshots/raw_caf.png)
 - **After Filtering Steps**  
   ![Filtered CAF](screenshots/after_filtering.png)
 
