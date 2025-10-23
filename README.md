@@ -213,15 +213,11 @@ Will include:
 
 ## References
 
-1. Griffiths, H. et al. *“Passive Bistatic Radar Systems”*, IEEE Radar Conference.  
-2. Malanowski, M., Kulpa, K. *“Signal Processing in Passive Radar Systems”*.  
-3. DVB-T ETSI EN 300 744 standard.  
-4. R. J. Mailloux, *“Phased Array Antenna Handbook”*.  
-5. Högbom, J. A., *“Aperture Synthesis with a Non-Regular Distribution of Interferometer Baselines”*, 1974.
+1. Malanowski, M., Kulpa, K. *“Signal Processing in Passive Radar Systems”*. 
 
 ---
 
-**Author:** [Your Name]  
+**Author:** [Maksymilian Zabierowski]  
 **Affiliation:** Passive Radar Project  
 **Language:** MATLAB  
 **License:** MIT License
