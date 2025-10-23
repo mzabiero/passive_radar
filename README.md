@@ -36,9 +36,8 @@ The target range and velocity are estimated via the **Cross Ambiguity Function (
 
 <p align="center">
   <b>(1)</b> &nbsp; 
-  $$\mathrm{CAF}(\tau, f_d) = \int x_{\mathrm{ref}}(t)\, x_{\mathrm{surv}}^*(t-\tau)\, e^{-j2\pi f_d t}\, dt$$
+  $$\large \mathbf{CAF(\tau, f_d) = \int x_{\mathrm{ref}}(t)\, x_{\mathrm{surv}}^*(t-\tau)\, e^{-j2\pi f_d t}\, dt}$$
 </p>
-
 
 Where:
 - \( \tau \) = time delay (range)
@@ -118,9 +117,10 @@ These patterns are usually **masked by clutter** or **stronger echoes** and beco
 The **CLEAN** algorithm iteratively subtracts the strongest echo from the CAF map to uncover weaker components.  
 It models the CAF as a sum of target responses:
 
-\[
-CAF(\tau, f_d) = \sum_i A_i \, \psi(\tau - \tau_i, f_d - f_{d,i}) + N(\tau, f_d)
-\]
+<p align="center">
+  <b>(2)</b> &nbsp;
+  $$\large \mathbf{CAF(\tau, f_d) = \sum_i A_i \, \psi(\tau - \tau_i, f_d - f_{d,i}) + N(\tau, f_d)}$$
+</p>
 
 At each iteration:
 1. Find the maximum response \((\tau_i, f_{d,i})\)
@@ -170,13 +170,13 @@ The application provides an **interactive GUI** for:
   ![Main GUI Screenshot](screenshots/gui_blank.png)
 
 - **After Filtering Steps**  
-  ![Filtered CAF](docs/screenshots/after_filtering.png)
+  ![Filtered CAF](screenshots/after_filtering.png)
 
 - **After CLEAN Algorithm**  
-  ![CLEAN Results](docs/screenshots/after_clean.png)
+  ![CLEAN Results](screenshots/after_clean.png)
 
 - **Simulation Result**  
-  ![Simulation Result](docs/screenshots/simulation_result.png)
+  ![Simulation Result](screenshots/simulation_result.png)
 
 ---
 
@@ -217,7 +217,7 @@ Will include:
 2. Malanowski, M., Kulpa, K. *“Signal Processing in Passive Radar Systems”*.  
 3. DVB-T ETSI EN 300 744 standard.  
 4. R. J. Mailloux, *“Phased Array Antenna Handbook”*.  
-5. CLEAN algorithm reference: Högbom, J. A., *“Aperture Synthesis with a Non-Regular Distribution of Interferometer Baselines”*, 1974.
+5. Högbom, J. A., *“Aperture Synthesis with a Non-Regular Distribution of Interferometer Baselines”*, 1974.
 
 ---
 
@@ -225,5 +225,3 @@ Will include:
 **Affiliation:** Passive Radar Project  
 **Language:** MATLAB  
 **License:** MIT License
-
-
