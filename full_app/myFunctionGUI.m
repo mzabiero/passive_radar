@@ -6,8 +6,9 @@ function passive_radar_app
     
     % left panel
     leftW    = 380;
-        hFiles   = 360;              
+        hFiles   = 360;
         hActions = 320;
+        hActions_scroll = 60;
         hStatus  = 280;
         
         yStatus  = gap;
@@ -54,10 +55,12 @@ function passive_radar_app
     %--------------------------------------------------------------%
     % ================== Left column panels ============================
     
-    pFiles = uipanel(fig,'Title','Parameters','Position',[gap yFiles leftW hFiles]);
-    pActions = uipanel(fig,'Title','Algorithms','Position',[gap yActions leftW hActions]);
-    pStatus = uipanel(fig,'Title','Status / Workspace','Position',[gap yStatus leftW hStatus]);
+    pFiles = uipanel(fig,'Title','Parameters','Position',[gap yFiles leftW hFiles], 'Scrollable','on');
+    pActions = uipanel(fig,'Title','Algorithms','Position',[gap yActions leftW hActions], 'Scrollable','on');
+    pStatus = uipanel(fig,'Title','Status / Workspace','Position',[gap yStatus leftW hStatus],'Scrollable','on');
 
+    pActions.Scrollable = 'on';
+    
                     % === File pickers ===
     uibutton(pFiles,'Text','Choose ref',...
         'Position',[10 hFiles-60 160 30],...
@@ -88,23 +91,25 @@ function passive_radar_app
         y = y-26;
         if y < 10, break; end
     end
-
+    
     % ==================== Action buttons =================================
-    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions-60 340 30],...
+    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions+10 300 30],...
         'ButtonPushedFcn',@(src,event) runCAF('orig'));
-    uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-100 340 30],...
+    uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-30 300 30],...
         'ButtonPushedFcn',@(src,event) runCAF('close'));
-    uibutton(pActions,'Text','CAF - filtr wide','Position',[20 hActions-140 340 30],...
+    uibutton(pActions,'Text','CAF - filtr wide','Position',[20 hActions-70 300 30],...
         'ButtonPushedFcn',@(src,event) runCAF('wide'));
-    uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-180 340 30],...
+    uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-110 300 30],...
         'ButtonPushedFcn',@(src,event) runCLEAN());
-    uibutton(pActions,'Text','CAF','Position',[20 hActions-220 340 30],...
+    uibutton(pActions,'Text','CAF','Position',[20 hActions-150 300 30],...
         'ButtonPushedFcn',@(src,event) runCAF('Normal'));
-    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-260 340 30],...
+    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-190 300 30],...
         'ButtonPushedFcn',@(src,event) plotSpectrum());
-    uibutton(pActions,'Text','Correlation','Position',[20 hActions-300 340 30],...
+    uibutton(pActions,'Text','Correlation','Position',[20 hActions-230 300 30],...
         'ButtonPushedFcn',@(src,event) runXcorr());
-                    
+    uibutton(pActions,'Text','Plot time','Position',[20 hActions-270 300 30],...
+        'ButtonPushedFcn',@(src,event) runPlotTime()); 
+    
                     % Status textarea
     txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
         'Editable','off');
@@ -248,16 +253,16 @@ function passive_radar_app
         if y < 10, break; end
     end
    
-        data.simulation.params.add_echo_counter = 1;
-        uibutton(pSimAlg,'Text','Generate simulated signal', ...
-        'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
-        'ButtonPushedFcn',@(src,event) simulationGenSig());
+        % data.simulation.params.add_echo_counter = 1;
+        % uibutton(pSimAlg,'Text','Generate simulated signal', ...
+        % 'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
+        % 'ButtonPushedFcn',@(src,event) simulationGenSig());
     
         uibutton(pSimAlg,'Text','Add echo', ...
-        'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
+        'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
         'ButtonPushedFcn',@(src,event) addEcho());
         uibutton(pSimAlg,'Text','Save signals to files', ...
-        'Position',[gap hSimAlgorithms-120-2*gap rightW-2*gap 30], ...
+        'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
         'ButtonPushedFcn',@(src,event) saveSimToFiles());
         
         uibutton(fig,'Text','Refresh','Position',[rightX+gap 45+gap rightW-2*gap 30],...
@@ -274,7 +279,12 @@ function passive_radar_app
         [file,path] = uigetfile({'*.*'});
         if isequal(file,0), return; end
         filename = fullfile(path,file);
-        sig = read_complex_binary(filename);
+        if endsWith(file, '.mat', 'IgnoreCase', true)
+            sig = struct2array(load(filename));
+        else
+            sig = read_complex_binary(filename);
+        end
+
         sig = sig / rms(sig);
         if strcmp(type,'ref')
             data.ref = sig;
@@ -364,7 +374,7 @@ function passive_radar_app
 
         updateStatus();
     end
-
+ 
     function runCLEAN()
         if ~isfield(data,'lastCAF')
             uialert(fig,'First calculate CAF!','ERROR'); return;
@@ -395,34 +405,91 @@ function passive_radar_app
         if ~isfield(data,'ref') && ~isfield(data,'surv')
             uialert(fig,'Choose signal','Błąd'); return;
         end
-       
-        choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','ref');
-    
-        if (strcmp(choice, 'ref'))
-            if isfield(data,'ref')
-                plot_spectrum(data.ref,data.params.fs);
-            else
-                uialert(fig,'Choose signal','Błąd'); return;
-            end
-        elseif(strcmp(choice,'surv')) 
-            if isfield(data,'lastSurv')
-                plot_spectrum(data.lastSurv,data.params.fs);
-            elseif isfield(data, 'surv')
-                plot_spectrum(data.surv,data.params.fs);
-            else
-                uialert(fig,'Choose signal','Błąd'); return;
-            end
-        else
-            return;
-        end
+        
+        figure;
+        plot_spectrum(data.ref,data.params.fs);
+        title("Ref spectrum");
+
+        figure;
+        plot_spectrum(data.surv,data.params.fs);
+        title("Surv spectrum");
+        
+        % choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','ref');
+        % 
+        % if (strcmp(choice, 'ref'))
+        %     if isfield(data,'ref')
+        %         plot_spectrum(data.ref,data.params.fs);
+        %         title("Ref spectrum");
+        %     else
+        %         uialert(fig,'Choose signal','Błąd'); return;
+        %     end
+        % elseif(strcmp(choice,'surv')) 
+        %     if isfield(data,'lastSurv')
+        %         plot_spectrum(data.lastSurv,data.params.fs);
+        %         title("Surv spectrum");
+        %     elseif isfield(data, 'surv')
+        %         plot_spectrum(data.surv,data.params.fs);
+        %         title("Surv spectrum");
+        %     else
+        %         uialert(fig,'Choose signal','Błąd'); return;
+        %     end
+        % else
+        %     return;
+        % end
     end
     
     function runXcorr()
         [corr, lags] = xcorr(data.ref,data.lastSurv,data.params.max_delay);
         corr = abs(corr)/max(abs(corr));
         D = 3e8 * lags./ data.params.fs;
+        figure;
         plot(D/1000, mag2db(abs(corr)));
+        title("Cross-correlation");
         fprintf("XCorr called\n");
+    end
+
+    function runPlotTime()
+        if ~isfield(data,'ref') && ~isfield(data,'surv')
+            uialert(fig,'Choose signal','Błąd'); return;
+        end
+          
+        N = length(data.ref);
+        time_ax = linspace(0,N/data.params.fs,N);
+
+        figure;
+        plot(time_ax,data.ref);
+        title("Time ref");
+        
+        figure;
+        plot(time_ax,data.surv);
+        title("Time surv");
+        
+        % choice = questdlg('Time plot','Choose Signal','ref','surv','both','ref');
+        % 
+        % if (strcmp(choice, 'ref'))
+        %     if isfield(data,'ref')
+        %         figure();
+        %         plot(time_ax,data.ref);
+        %         title("Time ref");
+        %     else
+        %         uialert(fig,'Choose signal','Błąd'); return;
+        %     end
+        % elseif(strcmp(choice,'surv')) 
+        %     if isfield(data,'lastSurv')
+        %         figure();
+        %         plot(time_ax,data.lastSurv);
+        %         title("Time last surv");
+        %     elseif isfield(data, 'surv')
+        %         figure();
+        %         plot(time_ax,data.surv);
+        %         title("Time surv");
+        %     else
+        %         uialert(fig,'Choose signal','Błąd'); return;
+        %     end
+        % else
+        %     return;
+        % end
+       
     end
                     % === History management ===
     function addToHistory(caf,surv_state,tag)
