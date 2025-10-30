@@ -5,12 +5,12 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis_ms] = ...
     disp("CAF running...");
     c = 3e8;
     lambda = c/fc;
-
+    hamming_size = floor(length(x_surv) / R);
     caf_matrix = zeros(max_delay, doppler_bins);       
     cpu_count = 10; % make it being taken from system info
     default_worker_number = 10;
     worker_number = min(default_worker_number, cpu_count);
-
+    
     parfor (m = 0:max_delay-1,worker_number)
         %ym = x_surv .* conj([zeros(m,1); x_ref(1:end-m)]);
         ym = x_surv .* conj(circshift(x_ref,m));
@@ -18,8 +18,9 @@ function [caf_matrix_dB, delay_axis_km,doppler_axis_ms] = ...
         %ym_lpf = lowpass(ym, fs / (2 * R), fs);
         %ym_dec = ym_lpf(1:R:end);
         ym_dec = decimate(ym,R);
+        ym_dec_hamm = ym_dec.*hamming(hamming_size);
         %ym_dec = decimate(ym_dec,10); 
-        ym_fft = fftshift(fft(ym_dec,doppler_bins));
+        ym_fft = fftshift(fft(ym_dec_hamm,doppler_bins));
         caf_matrix(m+1,:) = abs(ym_fft);   
     end
 

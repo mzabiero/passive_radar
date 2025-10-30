@@ -74,8 +74,8 @@ function passive_radar_app
               'FiltNear: Order','Step','BlockLen',...
               'FiltWide: Order','Step','BlockLen'};
     defaults = {10e6, 650e6, 200, 512, 2750,...
-                4, 7e-2, 8192,...
-                500, 2e-4, 8192};
+                4, 7e-2, 1e6,...
+                500, 2e-4, 1e6};
     data.params = cell2struct(defaults, ...
         {'fs','fc','max_delay','doppler_bins','R',...
          'filtOrder_close','stepSize_close','blockLength_close',...
@@ -253,7 +253,7 @@ function passive_radar_app
         if y < 10, break; end
     end
    
-        % data.simulation.params.add_echo_counter = 1;
+        data.simulation.params.add_echo_counter = 1;
         % uibutton(pSimAlg,'Text','Generate simulated signal', ...
         % 'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
         % 'ButtonPushedFcn',@(src,event) simulationGenSig());
@@ -361,7 +361,8 @@ function passive_radar_app
             otherwise
                 surv_clean = surv_in;
         end
-
+        
+        
         [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R);
         
         plotCAF(caf,delay_axis,doppler_axis,['CAF: ' mode]);
@@ -401,7 +402,7 @@ function passive_radar_app
         updateStatus();
     end
     
-    function plotSpectrum()
+        function plotSpectrum()
         if ~isfield(data,'ref') && ~isfield(data,'surv')
             uialert(fig,'Choose signal','Błąd'); return;
         end
@@ -440,7 +441,7 @@ function passive_radar_app
     
     function runXcorr()
         [corr, lags] = xcorr(data.ref,data.lastSurv,data.params.max_delay);
-        corr = abs(corr)/max(abs(corr));
+        %corr = abs(corr)/max(abs(corr));
         D = 3e8 * lags./ data.params.fs;
         figure;
         plot(D/1000, mag2db(abs(corr)));
@@ -572,7 +573,7 @@ function passive_radar_app
         clutter = data.simulation.params.Clutter;
         counter = data.simulation.params.add_echo_counter;
         
-        if(isfield(data.simulation.active,'x_ref'))
+        if(~(data.simulation.active.x_ref == 0))
             raw_signal = data.simulation.active.x_ref;
             x_surv_first = data.simulation.active.x_surv;
             signal_name = [data.simulation.active.name '_2'];
@@ -690,7 +691,8 @@ function passive_radar_app
     function refreshSimWorkspace(parent)
         delete(allchild(parent));
         data.simulation.hist = {};
-        data.simulation.active = 0;
+        data.simulation.active.x_ref = 0;
+        data.simulation.active.x_surv = 0;
         line_counter = 0;
         data.simulation.params.add_echo_counter= 1;
         data.simulation.sim_lines = {};

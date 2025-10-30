@@ -40,7 +40,7 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
 
     % 3) compute bistatic range (total path length) in km
     %    Range = c * tau, tau = delay_samp / fs -> path length in meters, /1000 -> km
-    bistatic_range_km = (c * (delay_idx / fs)) / 1000;
+    bistatic_range_km = (c * ( (delay_idx-1) / fs)) / 1000;
 
     % 4) build Doppler (frequency) axis taking into account any decimation factor R
     fs_dec = fs / R;  % effective sampling rate used when computing CAF
@@ -56,19 +56,20 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
     N = length(x_ref);
     t_dec = (0:N-1).' / fs_dec;   % time vector for the (possibly decimated) rate
 
-    % DO NOT use circshift (wrap-around)! Create delayed signal with front padding.
-    x_surv_clean = [zeros(delay_idx,1); x_ref(1:end-delay_idx)];
+    % Create delayed signal with front padding.
+    x_surv_clean = [zeros(delay_idx-1,1); x_ref(1:end-delay_idx+1)];
 
     % Apply Doppler
     n = (0:length(x_surv)-1).';
     doppler_phase = exp(1j*2*pi*fd*n/fs);
     echo_model =x_surv_clean .* doppler_phase; 
 
-    r = corrcoef([conj(echo_model) conj(x_surv)]);
-    ampl_model = r(2,1);
+    
+    ampl_est = ((x_surv') * echo_model) / ((echo_model') * echo_model);
+    
     
     % 7) subtract estimated echo
-    echo_est = ampl_model * echo_model;
+    echo_est = ampl_est * echo_model;
     x_surv_clean = x_surv - echo_est;
 
     % (optional) debug print
