@@ -51,7 +51,6 @@ function passive_radar_app
         parpool('threads');       % or 'local' cluster, or specify #workers
     end
 
-    
     %--------------------------------------------------------------%
     % ================== Left column panels ============================
     
@@ -63,53 +62,63 @@ function passive_radar_app
     
                     % === File pickers ===
     uibutton(pFiles,'Text','Choose ref',...
-        'Position',[10 hFiles-60 160 30],...
+        'Position',[10 hFiles-10 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('ref'));
     uibutton(pFiles,'Text','Choose surv',...
-        'Position',[190 hFiles-60 160 30],...
+        'Position',[190 hFiles-10 160 30],...
         'ButtonPushedFcn',@(src,event) loadFile('surv'));
 
                     % === Parameters ===
     labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
               'FiltNear: Order','Step','BlockLen',...
-              'FiltWide: Order','Step','BlockLen'};
+              'FiltWide: Order','Step','BlockLen','Window Type'};
     defaults = {10e6, 650e6, 200, 512, 2750,...
-                4, 7e-2, 1e6,...
-                500, 2e-4, 1e6};
+                4, 7e-2, 8192,...
+                500, 2e-4, 8192,0};
     data.params = cell2struct(defaults, ...
         {'fs','fc','max_delay','doppler_bins','R',...
          'filtOrder_close','stepSize_close','blockLength_close',...
-         'filtOrder_wide','stepSize_wide','blockLength_wide'},2);
+         'filtOrder_wide','stepSize_wide','blockLength_wide','window_type'},2);
+    win_list = {'none','hamming', 'hann', 'blackmann', 'kaiser'};
 
-    y = hFiles-100;
+    y = hFiles-40;
     fields = fieldnames(data.params);
     for i=1:numel(fields)
+        if strcmpi(labels{i},'Window Type')
+            uilabel(pFiles,'Text',labels{i},'Position',[10 y 150 22], 'HorizontalAlignment','left');
+            uidropdown(pFiles,'Items',win_list,...
+            'Position',[190 y 160 22],...
+            'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value,'data.params'));
+            y = y-26;
+        else
         uilabel(pFiles,'Text',labels{i},'Position',[10 y 150 22], 'HorizontalAlignment','left');
         uieditfield(pFiles,'numeric','Value',defaults{i},...
             'Position',[190 y 160 22],...
             'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value,'data.params'));
         y = y-26;
-        if y < 10, break; end
+        end
     end
-    
+
+   
     % ==================== Action buttons =================================
-    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions+10 300 30],...
+    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions+10 250 30],...
         'ButtonPushedFcn',@(src,event) runCAF('orig'));
-    uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-30 300 30],...
+    uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-30 250 30],...
         'ButtonPushedFcn',@(src,event) runCAF('close'));
-    uibutton(pActions,'Text','CAF - filtr wide','Position',[20 hActions-70 300 30],...
+    uibutton(pActions,'Text','CAF - filtr wide','Position',[20 hActions-70 250 30],...
         'ButtonPushedFcn',@(src,event) runCAF('wide'));
-    uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-110 300 30],...
+    chk_wide = uicheckbox(pActions,'Text','backward','Position',[275 hActions-70 100 30]);
+    uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-110 250 30],...
         'ButtonPushedFcn',@(src,event) runCLEAN());
-    uibutton(pActions,'Text','CAF','Position',[20 hActions-150 300 30],...
+    uibutton(pActions,'Text','CAF','Position',[20 hActions-150 250 30],...
         'ButtonPushedFcn',@(src,event) runCAF('Normal'));
-    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-190 300 30],...
+    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-190 250 30],...
         'ButtonPushedFcn',@(src,event) plotSpectrum());
-    uibutton(pActions,'Text','Correlation','Position',[20 hActions-230 300 30],...
+    uibutton(pActions,'Text','Correlation','Position',[20 hActions-230 250 30],...
         'ButtonPushedFcn',@(src,event) runXcorr());
-    uibutton(pActions,'Text','Plot time','Position',[20 hActions-270 300 30],...
+    uibutton(pActions,'Text','Plot time','Position',[20 hActions-270 250 30],...
         'ButtonPushedFcn',@(src,event) runPlotTime()); 
-    
+     
                     % Status textarea
     txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
         'Editable','off');
@@ -122,8 +131,6 @@ function passive_radar_app
     btnDelHist = uibutton(pStatus,'Text','Delete',...
         'Position',[100 15 80 30],...
         'ButtonPushedFcn',@(src,event) delHistory());
-
-
 
     % =================== Center column: Plotting scene ===================
                
@@ -159,19 +166,14 @@ function passive_radar_app
         'Position',[740 30 150 22],'Value',false);
 
                     % === Terminal panel ===
-    
-    %terminal = log_workspace_panel(centerP,[centerW-(4*gap)-terminalW+2*gap gap terminalW terminalH]);
-    %terminal.LogData = containers.Map(terminal.LogCategories, repmat({''}, size(terminal.LogCategories)));
-    
-    % terminal.LogCategoryDropdown = uitree(centerP,...
-    %     'Items', terminal.LogCategories,...
-    %     'Position', [centerW-(4*gap)-terminalW+2*gap gap terminalW terminalH]);
-
     pterminal = uipanel(centerP,'title','log window',...
         'position',[centerW-(4*gap)-terminalW+2*gap gap terminalW terminalH]);
     terminal = uitextarea(pterminal,'position',[0 0 terminalW terminalH-2*gap],...
        'editable','off');      
-
+    
+    % Initialization of log panel
+    data.log_lines = {};
+    data.log_lines = logTerminal(sprintf('Initialize'),'N',data.log_lines);
 
    % ================= Right column: Simulation panels ====================
     pSimParam   = uipanel(fig,'Title','Simulation Parameters',...
@@ -254,10 +256,7 @@ function passive_radar_app
     end
    
         data.simulation.params.add_echo_counter = 1;
-        % uibutton(pSimAlg,'Text','Generate simulated signal', ...
-        % 'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
-        % 'ButtonPushedFcn',@(src,event) simulationGenSig());
-    
+
         uibutton(pSimAlg,'Text','Add echo', ...
         'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
         'ButtonPushedFcn',@(src,event) addEcho());
@@ -294,7 +293,7 @@ function passive_radar_app
             data.surv_filename = file;
         end
         updateStatus();
-        %plot_spectrum(data.ref,data.params.fs);
+
     end
     
     function saveFile()
@@ -314,7 +313,7 @@ function passive_radar_app
             data.simulation.active.x_ref, data.simulation.active.x_surv,saveDir);
         
     end
-   
+
                     % === Parameters handling ===
     function setParam(name,val,dest)
         switch dest
@@ -329,7 +328,8 @@ function passive_radar_app
                     % === CAF Algorithms ===
     function runCAF(mode)
 
-        %logTerminal("CAF Running ...", "HOLD");
+        data.log_lines = logTerminal(sprintf('CAF Running ...'),'N', data.log_lines);
+        
         if ~isfield(data,'ref') || ~isfield(data,'surv')
             uialert(fig,'Załaduj pliki!','Błąd'); return;
         end
@@ -338,6 +338,7 @@ function passive_radar_app
         max_delay = data.params.max_delay;
         doppler_bins = data.params.doppler_bins;
         R = data.params.R;
+        window_type = data.params.window_type;
 
         if strcmp(mode,'orig') || ~isfield(data,'lastSurv')
             surv_in = data.surv;
@@ -354,16 +355,24 @@ function passive_radar_app
                     data.params.stepSize_close,...
                     data.params.blockLength_close);
             case 'wide'
-                surv_clean = clutter_removal(data.ref,surv_in,...
+                if chk_wide.Value
+                    x_rev = clutter_removal(flipud(data.ref), flipud(surv_in),...
                     data.params.filtOrder_wide,...
                     data.params.stepSize_wide,...
                     data.params.blockLength_wide);
+                    surv_clean = flipud(x_rev);
+                else
+                    surv_clean = clutter_removal(data.ref,surv_in,...
+                    data.params.filtOrder_wide,...
+                    data.params.stepSize_wide,...
+                    data.params.blockLength_wide);
+                end
+                
             otherwise
                 surv_clean = surv_in;
         end
         
-        
-        [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R);
+        [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R,window_type);
         
         plotCAF(caf,delay_axis,doppler_axis,['CAF: ' mode]);
     
@@ -371,9 +380,11 @@ function passive_radar_app
         data.lastSurv = surv_clean;
         data.delay_axis = delay_axis;
         data.doppler_axis = doppler_axis;
-        addToHistory(caf,surv_clean,mode);
+        addToHistory(caf,surv_clean,window_type,mode);
 
         updateStatus();
+        data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
+        data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
     end
  
     function runCLEAN()
@@ -390,29 +401,29 @@ function passive_radar_app
 
         if strcmp(choice,'Yes')
             data.lastSurv = x_clean;
+            
             [caf, delay_axis, doppler_axis] = CAF(data.ref,x_clean,...
                 data.params.fs, data.params.fc,...
-                data.params.max_delay, data.params.doppler_bins, data.params.R);
+                data.params.max_delay, data.params.doppler_bins, data.params.R,data.params.window_type);
             plotCAF(caf,delay_axis,doppler_axis,'CAF after CLEAN iteration');
             data.lastCAF = caf;
             data.delay_axis = delay_axis;
             data.doppler_axis = doppler_axis;
-            addToHistory(caf,x_clean,'CLEAN');
+            addToHistory(caf,x_clean,data.params.window_type,'CLEAN');
         end
         updateStatus();
     end
     
-        function plotSpectrum()
+    function plotSpectrum()
         if ~isfield(data,'ref') && ~isfield(data,'surv')
             uialert(fig,'Choose signal','Błąd'); return;
         end
         
-        figure;
+        
         plot_spectrum(data.ref,data.params.fs);
         title("Ref spectrum");
 
-        figure;
-        plot_spectrum(data.surv,data.params.fs);
+        plot_spectrum(data.lastSurv,data.params.fs);
         title("Surv spectrum");
         
         % choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','ref');
@@ -440,8 +451,8 @@ function passive_radar_app
     end
     
     function runXcorr()
-        [corr, lags] = xcorr(data.ref,data.lastSurv,data.params.max_delay);
-        %corr = abs(corr)/max(abs(corr));
+        [corr, lags] = xcorr(data.lastSurv,data.ref,data.params.max_delay);
+        corr = abs(corr)/max(abs(corr));
         D = 3e8 * lags./ data.params.fs;
         figure;
         plot(D/1000, mag2db(abs(corr)));
@@ -462,40 +473,15 @@ function passive_radar_app
         title("Time ref");
         
         figure;
-        plot(time_ax,data.surv);
+        plot(time_ax,data.lastSurv);
         title("Time surv");
-        
-        % choice = questdlg('Time plot','Choose Signal','ref','surv','both','ref');
-        % 
-        % if (strcmp(choice, 'ref'))
-        %     if isfield(data,'ref')
-        %         figure();
-        %         plot(time_ax,data.ref);
-        %         title("Time ref");
-        %     else
-        %         uialert(fig,'Choose signal','Błąd'); return;
-        %     end
-        % elseif(strcmp(choice,'surv')) 
-        %     if isfield(data,'lastSurv')
-        %         figure();
-        %         plot(time_ax,data.lastSurv);
-        %         title("Time last surv");
-        %     elseif isfield(data, 'surv')
-        %         figure();
-        %         plot(time_ax,data.surv);
-        %         title("Time surv");
-        %     else
-        %         uialert(fig,'Choose signal','Błąd'); return;
-        %     end
-        % else
-        %     return;
-        % end
-       
     end
+                    
                     % === History management ===
-    function addToHistory(caf,surv_state,tag)
+    function addToHistory(caf,surv_state,window_type,tag)
         entry.caf = caf;
         entry.surv = surv_state;
+        entry.window_type = window_type; 
         entry.mode = tag;
         
         data.history{end+1} = entry;
@@ -513,10 +499,11 @@ function passive_radar_app
         caf = entry.caf;
         surv_state = entry.surv;
         mode = entry.mode;
-        
+        window_type = entry.window_type;
         % ustaw jako bieżące
         data.lastCAF = caf;
         data.lastSurv = surv_state;
+        data.lastWindow_type = window_type;
         plotCAF(caf,data.delay_axis,data.doppler_axis,'History: ' + string(mode));
         updateStatus();
     end
@@ -563,29 +550,38 @@ function passive_radar_app
         fprintf("\nAdd echo called\n");
 
         params = data.simulation.params;
-        fname = params.File_Name;
         fs = data.simulation.params.fs;
         range_m = data.simulation.params.Echo_position;
         velocity_ms = data.simulation.params.Echo_velocity;
         fc = data.simulation.params.fc;
         atten = data.simulation.params.Attenuation;
         dpi = data.simulation.params.DPI;
-        clutter = data.simulation.params.Clutter;
+        %isClutter = data.simulation.params.Clutter;
         counter = data.simulation.params.add_echo_counter;
         
+        
+        clutter(1).delay = 120;    % m
+        clutter(1).mag   = 0.25;   % -12 dB
+        clutter(2).delay = 600;    % m
+        clutter(2).mag   = 0.12;   % -19 dB
+        clutter(3).delay = 1800;   % m
+        clutter(3).mag   = 0.05;   % -26 dB
+        clutter(4).delay = 3000;   % m
+        clutter(4).mag   = 0.50;   % -6 dB
+
         if(~(data.simulation.active.x_ref == 0))
             raw_signal = data.simulation.active.x_ref;
             x_surv_first = data.simulation.active.x_surv;
             signal_name = [data.simulation.active.name '_2'];
             [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
-            range_m,velocity_ms,fc,atten,fname,dpi,clutter);
+            range_m,velocity_ms,fc,atten,dpi,clutter);
             x_surv = x_surv * x_surv_first;
             data.simulation.hist{counter}.name = signal_name;
             data.simulation.params.File_Name = signal_name;
         else
             raw_signal = data.simulation.hist{counter}.x_ref;       
             [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
-            range_m,velocity_ms,fc,atten,fname,dpi,clutter);
+            range_m,velocity_ms,fc,atten,dpi,clutter);
             data.simulation.hist{counter}.name = data.simulation.params.File_Name;
         end
         data.simulation.hist{counter}.x_ref = x_ref;
@@ -631,9 +627,17 @@ function passive_radar_app
         if isfield(data,'lastCAF')
             sz = size(data.lastCAF);
             lines{end+1} = sprintf('CAF size: %d x %d',sz(1),sz(2));
+            data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
+            data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
+            data.log_lines = logTerminal(sprintf('Used window: %s',data.lastWindow_type),'A',data.log_lines);
         else
             lines{end+1} = 'CAF: not computed yet';
         end
+        lambda  = freq2wavelen(data.params.fc);
+        T       = length(data.ref)/data.params.fs;
+        lines{end+1} = sprintf('Distance resolution: %.1f m',3e8/data.params.fs);
+        lines{end+1} = sprintf('Velocity resolution: %.3f m/s',lambda/T);
+        lines{end+1} = sprintf('Signal duration: %.3f s',T);
         txtStatus.Value = lines;
     end
 
@@ -715,13 +719,15 @@ function passive_radar_app
         end
     end
     
-    function logTerminal(info, type) 
-        switch type
-            case "HOLD"
-                lines{end+1} = sprintf(info);
-            case "NEW"
-                lines = {};
+    function lines = logTerminal(info,type,lines) 
+        if (type == 'N')
+            lines = {};
+            lines{end+1} = info;
+        else 
+            lines{end+1} = info;
         end
+
+        terminal.Value = lines;
 
     end
     % === CLim helpers ===

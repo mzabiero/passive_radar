@@ -14,7 +14,9 @@ function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
         "StepSize", step_size,...
         "Method","Gradient Adaptive Lattice");
 
+    
     idx = 1;
+
     for k = 1:nBlocks
 
         ref_block = x_ref(idx:idx+M-1);

@@ -1,5 +1,5 @@
 function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, velocity_ms, fc,...
-    atten, infile,dpi,isClutter)
+    atten,dpi,clutter)
 %CREATE_REF_SURV_FROM_FILE  Generate reference and surveillance signals
 %   [x_ref, x_surv] = create_ref_surv_from_file(data, fs, range_m, velocity_ms, fc, atten, infile)
 %
@@ -10,7 +10,6 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
 %   velocity_ms - radial velocity of target in m/s
 %   fc          - carrier frequency in Hz (e.g. 650e6 for DVB-T channel)
 %   atten       - attenuation factor for echo (0..1)
-%   infile      - name of the file that names are going to be appended
 %   dpi         - determines if direct path interferance is added to the
 %  surv signal
 %   clutter     - determines if clutter reflections and echoes are added
@@ -24,7 +23,7 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
     dpi_atten = 0.999;
 
     % --- read input file ---
-    %data = read_complex_binary(infile);
+    % data = read_complex_binary(infile);
     % fid = fopen(infile,'rb');
     % raw = fread(fid,'float32');
     % fclose(fid);
@@ -34,12 +33,7 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
 
     N = length(data);
 
-    clutter = struct();
-    clutter.isClutter = isClutter;
-    clutter.power = 0.05;
-    clutter.num = 5;
-    clutter.spread = [0.5 1];
-
+    
     % --- reference signal ---
     x_ref = data;
 
@@ -68,8 +62,9 @@ function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, v
         x_surv = add_dpi(dpi_atten,x_ref,x_surv);
     end
     % Add Clutter echoes
-    if(clutter.isClutter == 1)
-        x_surv = add_clutter(x_surv,fs,clutter);
-    end
+    % if(clutter.isClutter == 1)
+    %     x_surv = add_clutter(x_surv,fs,clutter);
+    % end
+    x_surv = addClutter(x_ref,x_surv,clutter,fs);
     
 end
