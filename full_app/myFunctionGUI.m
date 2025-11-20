@@ -70,15 +70,15 @@ function passive_radar_app
 
                     % === Parameters ===
     labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
-              'FiltNear: Order','Step','BlockLen',...
-              'FiltWide: Order','Step','BlockLen','Window Type'};
+              'FiltNear: Order','Forgetting Factor','BlockLen',...
+              'FiltWide: Order','Forgetting Factor','BlockLen','Window Type'};
     defaults = {10e6, 650e6, 200, 512, 2750,...
-                4, 7e-2, 8192,...
-                500, 2e-4, 8192,0};
+                4, 0.99, 8192,...
+                500, 0.99999, 8192,0};
     data.params = cell2struct(defaults, ...
         {'fs','fc','max_delay','doppler_bins','R',...
-         'filtOrder_close','stepSize_close','blockLength_close',...
-         'filtOrder_wide','stepSize_wide','blockLength_wide','window_type'},2);
+         'filtOrder_close','forgetting_fact_close','blockLength_close',...
+         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','window_type'},2);
     win_list = {'none','hamming', 'hann', 'blackmann', 'kaiser'};
 
     y = hFiles-40;
@@ -131,6 +131,9 @@ function passive_radar_app
     btnDelHist = uibutton(pStatus,'Text','Delete',...
         'Position',[100 15 80 30],...
         'ButtonPushedFcn',@(src,event) delHistory());
+    btnDelHist = uibutton(pStatus,'Text','Reset',...
+        'Position',[185 15 80 30],...
+        'ButtonPushedFcn',@(src,event) rstHistory());
 
     % =================== Center column: Plotting scene ===================
                
@@ -308,10 +311,11 @@ function passive_radar_app
     end
 
     function saveSimToFiles()
+        
         saveDir = 'data/simulation';
         sim_save_del(data.simulation.active.name, ...
             data.simulation.active.x_ref, data.simulation.active.x_surv,saveDir);
-        
+        fprintf("Signals saved\n");
     end
 
                     % === Parameters handling ===
@@ -352,19 +356,19 @@ function passive_radar_app
             case 'close'
                 surv_clean = clutter_removal(data.ref,surv_in,...
                     data.params.filtOrder_close,...
-                    data.params.stepSize_close,...
+                    data.params.forgetting_fact_close,...
                     data.params.blockLength_close);
             case 'wide'
                 if chk_wide.Value
                     x_rev = clutter_removal(flipud(data.ref), flipud(surv_in),...
                     data.params.filtOrder_wide,...
-                    data.params.stepSize_wide,...
+                    data.params.forgetting_fact_wide,...
                     data.params.blockLength_wide);
                     surv_clean = flipud(x_rev);
                 else
                     surv_clean = clutter_removal(data.ref,surv_in,...
                     data.params.filtOrder_wide,...
-                    data.params.stepSize_wide,...
+                    data.params.forgetting_fact_wide,...
                     data.params.blockLength_wide);
                 end
                 
@@ -380,7 +384,9 @@ function passive_radar_app
         data.lastSurv = surv_clean;
         data.delay_axis = delay_axis;
         data.doppler_axis = doppler_axis;
-        addToHistory(caf,surv_clean,window_type,mode);
+        axes.delay = delay_axis;
+        axes.doppler = doppler_axis;
+        addToHistory(caf,surv_clean,window_type,mode,axes);
 
         updateStatus();
         data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
@@ -402,14 +408,16 @@ function passive_radar_app
         if strcmp(choice,'Yes')
             data.lastSurv = x_clean;
             
-            [caf, delay_axis, doppler_axis] = CAF(data.ref,x_clean,...
+            [caf, delay_axis, doppler_axis] = CAF(data.ref,data.lastSurv,...
                 data.params.fs, data.params.fc,...
                 data.params.max_delay, data.params.doppler_bins, data.params.R,data.params.window_type);
             plotCAF(caf,delay_axis,doppler_axis,'CAF after CLEAN iteration');
             data.lastCAF = caf;
             data.delay_axis = delay_axis;
             data.doppler_axis = doppler_axis;
-            addToHistory(caf,x_clean,data.params.window_type,'CLEAN');
+            axes.delay = delay_axis;
+            axes.doppler = doppler_axis;
+            addToHistory(caf,x_clean,data.params.window_type,'CLEAN',axes);
         end
         updateStatus();
     end
@@ -478,12 +486,12 @@ function passive_radar_app
     end
                     
                     % === History management ===
-    function addToHistory(caf,surv_state,window_type,tag)
+    function addToHistory(caf,surv_state,window_type,tag,axes)
         entry.caf = caf;
         entry.surv = surv_state;
         entry.window_type = window_type; 
         entry.mode = tag;
-        
+        entry.axes = axes;
         data.history{end+1} = entry;
         data.histTitles{end+1} = sprintf('%d: %s',numel(data.history),tag);
         lstHistory.Items = data.histTitles;
@@ -500,11 +508,12 @@ function passive_radar_app
         surv_state = entry.surv;
         mode = entry.mode;
         window_type = entry.window_type;
+        axes = entry.axes;
         % ustaw jako bieżące
         data.lastCAF = caf;
         data.lastSurv = surv_state;
         data.lastWindow_type = window_type;
-        plotCAF(caf,data.delay_axis,data.doppler_axis,'History: ' + string(mode));
+        plotCAF(caf,axes.delay,axes.doppler,'History: ' + string(mode));
         updateStatus();
     end
 
@@ -516,6 +525,13 @@ function passive_radar_app
         data.history(pos) = [];
         data.histTitles(pos) = [];
         lstHistory.Items = data.histTitles;
+    end
+
+    function rstHistory()
+        data.history = {};
+        data.histTitles = {};
+        lstHistory.Items = data.histTitles;
+        data.lastSurv = data.surv;
     end
     
                     % === Simulation helper ===
@@ -546,8 +562,9 @@ function passive_radar_app
     end
     
     function addEcho()
-        x_ref = simulationGenSig();
         fprintf("\nAdd echo called\n");
+        x_ref = simulationGenSig();
+        
 
         params = data.simulation.params;
         fs = data.simulation.params.fs;
@@ -560,14 +577,27 @@ function passive_radar_app
         counter = data.simulation.params.add_echo_counter;
         
         
-        clutter(1).delay = 120;    % m
-        clutter(1).mag   = 0.25;   % -12 dB
-        clutter(2).delay = 600;    % m
-        clutter(2).mag   = 0.12;   % -19 dB
-        clutter(3).delay = 1800;   % m
-        clutter(3).mag   = 0.05;   % -26 dB
-        clutter(4).delay = 3000;   % m
-        clutter(4).mag   = 0.50;   % -6 dB
+        % clutter(1).delay = 120;    % m
+        % clutter(1).mag   = 0.25;   % -12 dB
+        % clutter(2).delay = 600;    % m
+        % clutter(2).mag   = 0.12;   % -19 dB
+        % clutter(3).delay = 1800;   % m
+        % clutter(3).mag   = 0.05;   % -26 dB
+        % clutter(4).delay = 3000;   % m
+        % clutter(4).mag   = 0.50;   % -6 dB
+
+        
+        N = 1000;
+        clutter_range_m = 1+ rand(1,N)*30e3;
+        clutter_range_m = sort(clutter_range_m);
+        raw = 1./clutter_range_m;
+        clutter_mag = raw / max(raw);
+        data.simulation.params.clutter_mag = clutter_mag;
+        data.simulation.params.clutter_range_m = clutter_range_m;
+        % clutter_range_m = [120; 600; 1800; 3000];
+        % clutter_mag_dB = [0.25; 0.12; 0.05; 0.5];
+
+        clutter = create_clutter(clutter_range_m,clutter_mag);
 
         if(~(data.simulation.active.x_ref == 0))
             raw_signal = data.simulation.active.x_ref;
@@ -575,7 +605,7 @@ function passive_radar_app
             signal_name = [data.simulation.active.name '_2'];
             [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
             range_m,velocity_ms,fc,atten,dpi,clutter);
-            x_surv = x_surv * x_surv_first;
+            x_surv = x_surv .* x_surv_first;
             data.simulation.hist{counter}.name = signal_name;
             data.simulation.params.File_Name = signal_name;
         else
@@ -625,19 +655,25 @@ function passive_radar_app
             lines{end+1} = 'Surv file: not loaded';
         end
         if isfield(data,'lastCAF')
+            lambda  = freq2wavelen(data.params.fc);
+            T = length(data.ref)/data.params.fs;
             sz = size(data.lastCAF);
             lines{end+1} = sprintf('CAF size: %d x %d',sz(1),sz(2));
             data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
             data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
-            data.log_lines = logTerminal(sprintf('Used window: %s',data.lastWindow_type),'A',data.log_lines);
+            lines{end+1} = sprintf('Distance resolution: %.1f m',3e8/data.params.fs);
+            lines{end+1} = sprintf('Velocity resolution: %.3f m/s',lambda/T);
+            lines{end+1} = sprintf('Signal duration: %.3f s',T);
+            if isfield(data,'lastWindow_type')
+                data.log_lines = logTerminal(sprintf('Used window: %s',data.lastWindow_type),'A',data.log_lines);
+            else
+               data.log_lines = logTerminal(sprintf('Used window: %s','Nan'),'A',data.log_lines); 
+            end
         else
             lines{end+1} = 'CAF: not computed yet';
         end
-        lambda  = freq2wavelen(data.params.fc);
-        T       = length(data.ref)/data.params.fs;
-        lines{end+1} = sprintf('Distance resolution: %.1f m',3e8/data.params.fs);
-        lines{end+1} = sprintf('Velocity resolution: %.3f m/s',lambda/T);
-        lines{end+1} = sprintf('Signal duration: %.3f s',T);
+        
+        
         txtStatus.Value = lines;
     end
 

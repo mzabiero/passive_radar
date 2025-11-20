@@ -37,7 +37,7 @@ function x_surv_clutter = addClutter(x_ref, x_surv, clutter, fs)
 
     for i = 1:numel(clutter)
         % Convert delay in meters to samples
-        tau = clutter(i).delay / c; 
+        tau = clutter(i).range_m / c; 
         delaySamples = round(tau * fs);
 
         if delaySamples >= N
@@ -49,7 +49,7 @@ function x_surv_clutter = addClutter(x_ref, x_surv, clutter, fs)
         echo = [zeros(delaySamples,1); x_ref(1:end-delaySamples)];
 
         % Scale by magnitude
-        echo = clutter(i).mag * echo;
+        echo = clutter(i).magnitude * echo;
 
         % Add to surveillance signal
         x_surv_clutter = x_surv_clutter + echo;

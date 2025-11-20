@@ -1,7 +1,6 @@
 function [x_ref, x_surv] = simulate_target_ref_surv_signals(data, fs, range_m, velocity_ms, fc,...
     atten,dpi,clutter)
-%CREATE_REF_SURV_FROM_FILE  Generate reference and surveillance signals
-%   [x_ref, x_surv] = create_ref_surv_from_file(data, fs, range_m, velocity_ms, fc, atten, infile)
+%   [x_ref, x_surv] = create_ref_surv_from_file(data, fs, range_m, velocity_ms, fc, atten,dpi, clutter)
 %
 %   data        - input data that's processed to create ref and surv
 %   signals

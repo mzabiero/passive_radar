@@ -1,5 +1,5 @@
 function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
-    step_size, block_len)
+    forgetting_fact, block_len)
 
     disp("Clutter removal running...");
     %parameters
@@ -7,14 +7,13 @@ function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
     M = block_len;
     nBlocks = floor(N/M);
     x_surv_clean = complex(zeros(N,1));
-
-    %filter design 
+    format long;
+    %filter design
     lattice = dsp.AdaptiveLatticeFilter(...
-        "Length", filt_order,...
-        "StepSize", step_size,...
-        "Method","Gradient Adaptive Lattice");
+        "Method","Least-squares Lattice",...
+        "ForgettingFactor",forgetting_fact,...
+        "Length",filt_order);
 
-    
     idx = 1;
 
     for k = 1:nBlocks
@@ -28,6 +27,4 @@ function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
 
         idx = idx+M;
     end
-    % [y,e] = lattice(x_ref,x_surv);
-    %x_surv_clean = e; 
 end
