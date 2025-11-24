@@ -57,7 +57,7 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
     t_dec = (0:N-1).' / fs_dec;   % time vector for the (possibly decimated) rate
 
     % Create delayed signal with front padding.
-    x_surv_clean = [zeros(delay_idx,1); x_ref(1:end-delay_idx)];
+    x_surv_clean = [zeros(delay_idx-1,1); x_ref(1:end-delay_idx+1)];
 
     % Apply Doppler
     n = (0:length(x_surv)-1).';

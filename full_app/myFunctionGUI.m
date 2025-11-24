@@ -71,14 +71,14 @@ function passive_radar_app
                     % === Parameters ===
     labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
               'FiltNear: Order','Forgetting Factor','BlockLen',...
-              'FiltWide: Order','Forgetting Factor','BlockLen','Window Type'};
+              'FiltWide: Order','Forgetting Factor','BlockLen','Window Type', 'Backward delay'};
     defaults = {10e6, 650e6, 200, 512, 2750,...
                 4, 0.99, 8192,...
-                500, 0.99999, 8192,0};
+                500, 0.99999, 8192,0,0};
     data.params = cell2struct(defaults, ...
         {'fs','fc','max_delay','doppler_bins','R',...
          'filtOrder_close','forgetting_fact_close','blockLength_close',...
-         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','window_type'},2);
+         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','window_type','backward_delay'},2);
     win_list = {'none','hamming', 'hann', 'blackmann', 'kaiser'};
 
     y = hFiles-40;
@@ -349,7 +349,8 @@ function passive_radar_app
         else
             surv_in = data.lastSurv;
         end
-
+        
+        
         switch mode
             case 'orig'
                 surv_clean = data.surv;
@@ -492,6 +493,8 @@ function passive_radar_app
         entry.window_type = window_type; 
         entry.mode = tag;
         entry.axes = axes;
+        entry.ref_filename = data.ref_filename;
+        entry.surv_filename = data.surv_filename;
         data.history{end+1} = entry;
         data.histTitles{end+1} = sprintf('%d: %s',numel(data.history),tag);
         lstHistory.Items = data.histTitles;
@@ -515,6 +518,8 @@ function passive_radar_app
         data.lastWindow_type = window_type;
         plotCAF(caf,axes.delay,axes.doppler,'History: ' + string(mode));
         updateStatus();
+        logTerminal(['Ref: ' entry.ref_filename],'A',data.log_lines);
+        logTerminal(['Surv: ' entry.surv_filename],'A',data.log_lines);
     end
 
     function delHistory()
@@ -596,9 +601,16 @@ function passive_radar_app
         data.simulation.params.clutter_range_m = clutter_range_m;
         % clutter_range_m = [120; 600; 1800; 3000];
         % clutter_mag_dB = [0.25; 0.12; 0.05; 0.5];
+        range_m     = [150, 150, 150,1300]; 
+        velocity_ms = [200,  25,   -200,-250];
+        atten       = [0.0001, 0.002, 0.0001,0.0005];
 
-        clutter = create_clutter(clutter_range_m,clutter_mag);
-
+        if(data.simulation.params.Clutter)
+            clutter = create_clutter(clutter_range_m,clutter_mag);
+        else 
+            clutter = 0;
+        end
+        
         if(~(data.simulation.active.x_ref == 0))
             raw_signal = data.simulation.active.x_ref;
             x_surv_first = data.simulation.active.x_surv;
@@ -764,6 +776,7 @@ function passive_radar_app
         end
 
         terminal.Value = lines;
+        data.log_lines = lines;
 
     end
     % === CLim helpers ===
