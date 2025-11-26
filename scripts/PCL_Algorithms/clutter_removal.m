@@ -1,14 +1,19 @@
-function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
-    forgetting_fact, block_len)
+function x_surv_clean = clutter_removal( ...
+        x_ref, x_surv, filt_order, forgetting_fact, block_len, back_filt)
 
     disp("Clutter removal running...");
-    %parameters
+    
     N = length(x_ref);
     M = block_len;
     nBlocks = floor(N/M);
+    if back_filt > 0
+        ref_shifted = [x_ref(back_filt+1:end); zeros(back_filt,1)];
+    else
+        ref_shifted = x_ref;
+    end
+
     x_surv_clean = complex(zeros(N,1));
-    format long;
-    %filter design
+
     lattice = dsp.AdaptiveLatticeFilter(...
         "Method","Least-squares Lattice",...
         "ForgettingFactor",forgetting_fact,...
@@ -18,13 +23,14 @@ function x_surv_clean = clutter_removal (x_ref, x_surv,filt_order,...
 
     for k = 1:nBlocks
 
-        ref_block = x_ref(idx:idx+M-1);
-        surv_block = x_surv(idx:idx+M-1);
+        r_block = ref_shifted(idx : idx+M-1);
+        s_block = x_surv(idx : idx+M-1);
 
-        [y_block, e_block] = lattice(ref_block,surv_block);
+        [~, e_block] = lattice(r_block, s_block);
 
         x_surv_clean(idx:idx+M-1) = e_block;
 
-        idx = idx+M;
+        idx = idx + M;
     end
+
 end

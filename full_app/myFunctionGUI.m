@@ -6,7 +6,7 @@ function passive_radar_app
     
     % left panel
     leftW    = 380;
-        hFiles   = 360;
+        hFiles   = 380;
         hActions = 320;
         hActions_scroll = 60;
         hStatus  = 280;
@@ -69,16 +69,16 @@ function passive_radar_app
         'ButtonPushedFcn',@(src,event) loadFile('surv'));
 
                     % === Parameters ===
-    labels = {'fs (Hz)','fc (Hz)','max_delay','doppler_bins','R',...
+    labels = {'fs (Hz)','fc (Hz)','Max delay','Backward delay','doppler_bins','R',...
               'FiltNear: Order','Forgetting Factor','BlockLen',...
-              'FiltWide: Order','Forgetting Factor','BlockLen','Window Type', 'Backward delay'};
-    defaults = {10e6, 650e6, 200, 512, 2750,...
+              'FiltWide: Order','Forgetting Factor','BlockLen','Backward filtering','Window Type'};
+    defaults = {10e6, 650e6, 200,0, 512, 2750,...
                 4, 0.99, 8192,...
                 500, 0.99999, 8192,0,0};
     data.params = cell2struct(defaults, ...
-        {'fs','fc','max_delay','doppler_bins','R',...
+        {'fs','fc','max_delay','backward_delay','doppler_bins','R',...
          'filtOrder_close','forgetting_fact_close','blockLength_close',...
-         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','window_type','backward_delay'},2);
+         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','back_filt','window_type'},2);
     win_list = {'none','hamming', 'hann', 'blackmann', 'kaiser'};
 
     y = hFiles-40;
@@ -343,13 +343,13 @@ function passive_radar_app
         doppler_bins = data.params.doppler_bins;
         R = data.params.R;
         window_type = data.params.window_type;
-
+        back_delay = data.params.backward_delay;
+        back_filt = data.params.back_filt;
         if strcmp(mode,'orig') || ~isfield(data,'lastSurv')
             surv_in = data.surv;
         else
             surv_in = data.lastSurv;
         end
-        
         
         switch mode
             case 'orig'
@@ -358,29 +358,21 @@ function passive_radar_app
                 surv_clean = clutter_removal(data.ref,surv_in,...
                     data.params.filtOrder_close,...
                     data.params.forgetting_fact_close,...
-                    data.params.blockLength_close);
+                    data.params.blockLength_close, back_filt);
             case 'wide'
-                if chk_wide.Value
-                    x_rev = clutter_removal(flipud(data.ref), flipud(surv_in),...
-                    data.params.filtOrder_wide,...
-                    data.params.forgetting_fact_wide,...
-                    data.params.blockLength_wide);
-                    surv_clean = flipud(x_rev);
-                else
-                    surv_clean = clutter_removal(data.ref,surv_in,...
-                    data.params.filtOrder_wide,...
-                    data.params.forgetting_fact_wide,...
-                    data.params.blockLength_wide);
-                end
                 
+                surv_clean = clutter_removal(data.ref,surv_in,...
+                    data.params.filtOrder_wide,...
+                    data.params.forgetting_fact_wide,...
+                    data.params.blockLength_wide,back_filt);     
             otherwise
                 surv_clean = surv_in;
         end
         
-        [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R,window_type);
-        
+        [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R,window_type,back_delay);
+
         plotCAF(caf,delay_axis,doppler_axis,['CAF: ' mode]);
-    
+
         data.lastCAF = caf;
         data.lastSurv = surv_clean;
         data.delay_axis = delay_axis;
@@ -411,7 +403,7 @@ function passive_radar_app
             
             [caf, delay_axis, doppler_axis] = CAF(data.ref,data.lastSurv,...
                 data.params.fs, data.params.fc,...
-                data.params.max_delay, data.params.doppler_bins, data.params.R,data.params.window_type);
+                data.params.max_delay, data.params.doppler_bins, data.params.R,data.params.window_type,data.params.backward_delay);
             plotCAF(caf,delay_axis,doppler_axis,'CAF after CLEAN iteration');
             data.lastCAF = caf;
             data.delay_axis = delay_axis;
