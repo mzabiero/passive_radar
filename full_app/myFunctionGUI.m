@@ -293,6 +293,7 @@ function passive_radar_app
             data.ref_filename = file;
         else
             data.surv = sig;
+            data.lastSurv = sig;
             data.surv_filename = file;
         end
         updateStatus();
@@ -384,6 +385,7 @@ function passive_radar_app
         updateStatus();
         data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
         data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
+        data.log_lines = logTerminal(sprintf('Surv signal power: %.2f dB',pow2db(mean(abs(data.lastSurv) .^2)) ),'A', data.log_lines);
     end
  
     function runCLEAN()

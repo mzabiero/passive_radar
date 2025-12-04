@@ -22,7 +22,7 @@ function x_surv_clean = clutter_removal( ...
     idx = 1;
 
     for k = 1:nBlocks
-
+        fprintf("%d / %d\n",k,nBlocks);
         r_block = ref_shifted(idx : idx+M-1);
         s_block = x_surv(idx : idx+M-1);
 
