@@ -1,351 +1,375 @@
 function passive_radar_app
-    % === Layout constants ===
-    figPos   = [100 100 2000 1000];
-    gap      = 10;
-    vert_gap = 20;
+    % === MAIN CONFIGURATION & LAYOUT CONSTANTS ===
+    config.figPos   = [100 100 1600 900]; % Mniejsza domyślna, żeby testować skalowanie
+    config.gap      = 10;
     
-    % left panel
-    leftW    = 380;
-        hFiles   = 380;
-        hActions = 320;
-        hActions_scroll = 60;
-        hStatus  = 280;
-        
-        yStatus  = gap;
-        yActions = yStatus + hStatus + gap;
-        yFiles   = yActions + hActions + gap;
+    % Panel Dimensions (Fixed Widths)
+    layout.leftW    = 380;
+    layout.rightW   = 250;
+    % Center width calculated dynamically later
     
-    % Right panel
-    rightW = 250;
-    rightX = figPos(3) - rightW - gap;
-        hSimParam   = 360;
-        hSimAlgorithms = 240;
-        hSimStatus  = 260;
+    % === HEIGHT CALCULATIONS (Dynamic) ===
+    % Ustawiamy wysokości lewych paneli jako procent dostępnej wysokości
+    totalH = config.figPos(4);
+    leftAvailableH = totalH - 4*config.gap; 
+    
+    layout.hFiles   = floor(leftAvailableH * 0.40); % 40% na parametry
+    layout.hActions = floor(leftAvailableH * 0.35); % 35% na przyciski
+    layout.hStatus  = leftAvailableH - layout.hFiles - layout.hActions; % Reszta na historię
+    
+    % Heights - Right Panel
+    layout.hSimParam      = 360;
+    layout.hSimAlgorithms = 280;
+    layout.hSimStatus     = 220;
 
-        ySimStatus  = gap+100;
-        ySimButtons = ySimStatus + hSimStatus + gap;
-        ySimParam   = ySimButtons + hSimAlgorithms + gap;
-
-    % Middle panel
-    centerX   = leftW + 2*gap;
-    centerW   = figPos(3) - leftW - rightW- 4*gap;
-        hClim    = 110;
-        yClim    = gap;
-        terminalW= centerW*(1/5);
-        terminalH= hClim;
-        yAxes    = yClim + hClim + gap;
-        hAxes    = figPos(4) - yAxes - gap;
-        
-   
-    % === Main window ===
-    fig = uifigure('Name','Passive Radar App','Position',figPos);
-
-    % Global data
+    % Heights - Center Panel
+    layout.hClim    = 110;
+    
+    % === GLOBAL DATA STRUCTURE ===
     data = struct();
     data.history = {};
     data.histTitles = {};
-    data.simulation = {};
-    
-    % Initialization of parallel computing and simulation
-    if isempty(gcp('nocreate'))   % check if pool exists
-        parpool('threads');       % or 'local' cluster, or specify #workers
-    end
-
-    %--------------------------------------------------------------%
-    % ================== Left column panels ============================
-    
-    pFiles = uipanel(fig,'Title','Parameters','Position',[gap yFiles leftW hFiles], 'Scrollable','on');
-    pActions = uipanel(fig,'Title','Algorithms','Position',[gap yActions leftW hActions], 'Scrollable','on');
-    pStatus = uipanel(fig,'Title','Status / Workspace','Position',[gap yStatus leftW hStatus],'Scrollable','on');
-
-    pActions.Scrollable = 'on';
-    
-                    % === File pickers ===
-    uibutton(pFiles,'Text','Choose ref',...
-        'Position',[10 hFiles-10 160 30],...
-        'ButtonPushedFcn',@(src,event) loadFile('ref'));
-    uibutton(pFiles,'Text','Choose surv',...
-        'Position',[190 hFiles-10 160 30],...
-        'ButtonPushedFcn',@(src,event) loadFile('surv'));
-
-                    % === Parameters ===
-    labels = {'fs (Hz)','fc (Hz)','Max delay','Backward delay','doppler_bins','R',...
-              'FiltNear: Order','Forgetting Factor','BlockLen',...
-              'FiltWide: Order','Forgetting Factor','BlockLen','Backward filtering','Window Type'};
-    defaults = {10e6, 650e6, 200,0, 512, 2750,...
-                4, 0.99, 8192,...
-                500, 0.99999, 8192,0,0};
-    data.params = cell2struct(defaults, ...
-        {'fs','fc','max_delay','backward_delay','doppler_bins','R',...
-         'filtOrder_close','forgetting_fact_close','blockLength_close',...
-         'filtOrder_wide','forgetting_fact_wide','blockLength_wide','back_filt','window_type'},2);
-    win_list = {'none','hamming', 'hann', 'blackmann', 'kaiser'};
-
-    y = hFiles-40;
-    fields = fieldnames(data.params);
-    for i=1:numel(fields)
-        if strcmpi(labels{i},'Window Type')
-            uilabel(pFiles,'Text',labels{i},'Position',[10 y 150 22], 'HorizontalAlignment','left');
-            uidropdown(pFiles,'Items',win_list,...
-            'Position',[190 y 160 22],...
-            'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value,'data.params'));
-            y = y-26;
-        else
-        uilabel(pFiles,'Text',labels{i},'Position',[10 y 150 22], 'HorizontalAlignment','left');
-        uieditfield(pFiles,'numeric','Value',defaults{i},...
-            'Position',[190 y 160 22],...
-            'ValueChangedFcn',@(src,event) setParam(fields{i},src.Value,'data.params'));
-        y = y-26;
-        end
-    end
-
-   
-    % ==================== Action buttons =================================
-    uibutton(pActions,'Text','CAF - raw','Position',[20 hActions+10 250 30],...
-        'ButtonPushedFcn',@(src,event) runCAF('orig'));
-    uibutton(pActions,'Text','CAF - filtr close','Position',[20 hActions-30 250 30],...
-        'ButtonPushedFcn',@(src,event) runCAF('close'));
-    uibutton(pActions,'Text','CAF - filtr wide','Position',[20 hActions-70 250 30],...
-        'ButtonPushedFcn',@(src,event) runCAF('wide'));
-    chk_wide = uicheckbox(pActions,'Text','backward','Position',[275 hActions-70 100 30]);
-    uibutton(pActions,'Text','CLEAN + CAF','Position',[20 hActions-110 250 30],...
-        'ButtonPushedFcn',@(src,event) runCLEAN());
-    uibutton(pActions,'Text','CAF','Position',[20 hActions-150 250 30],...
-        'ButtonPushedFcn',@(src,event) runCAF('Normal'));
-    uibutton(pActions,'Text','Plot Spectrum','Position',[20 hActions-190 250 30],...
-        'ButtonPushedFcn',@(src,event) plotSpectrum());
-    uibutton(pActions,'Text','Correlation','Position',[20 hActions-230 250 30],...
-        'ButtonPushedFcn',@(src,event) runXcorr());
-    uibutton(pActions,'Text','Plot time','Position',[20 hActions-270 250 30],...
-        'ButtonPushedFcn',@(src,event) runPlotTime()); 
-     
-                    % Status textarea
-    txtStatus = uitextarea(pStatus,'Position',[10 10 leftW-20 hStatus-40],...
-        'Editable','off');
-
-                    % Results history
-    lstHistory = uilistbox(pStatus,'Position',[10 hStatus-210 leftW-20 85]);
-    btnLoadHist = uibutton(pStatus,'Text','Load',...
-        'Position',[15 15 80 30],...
-        'ButtonPushedFcn',@(src,event) loadHistory());
-    btnDelHist = uibutton(pStatus,'Text','Delete',...
-        'Position',[100 15 80 30],...
-        'ButtonPushedFcn',@(src,event) delHistory());
-    btnDelHist = uibutton(pStatus,'Text','Reset',...
-        'Position',[185 15 80 30],...
-        'ButtonPushedFcn',@(src,event) rstHistory());
-
-    % =================== Center column: Plotting scene ===================
-               
-    centerP = uipanel(fig,"Title","Plotting Panel",...
-        "Position", [leftW+2*gap gap centerW hClim+hAxes+gap]);
-    ax = uiaxes(centerP,'Position',[gap gap+hClim centerW-yAxes hAxes-gap]);
-    title(ax,'CAF');
-    xlabel(ax,'Bistatic velocity (m/s)');
-    ylabel(ax,'Bistatic range (km)');
-
-    pClim = uipanel(centerP,'Title','Scaling C axis',...
-        'Position',[gap gap centerW-(4*gap)-terminalW hClim]);
-
-                    % === CLim controls ===
-    uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
-    editCmin = uieditfield(pClim,'numeric','Value',-30,...
-        'Position',[60 60 80 22]);
-    uilabel(pClim,'Text','C-max','Position',[160 60 50 22]);
-    editCmax = uieditfield(pClim,'numeric','Value',0,...
-        'Position',[210 60 80 22]);
-    btnUpdateCLim = uibutton(pClim,'Text','Update','Position',[310 60 80 22],...
-        'ButtonPushedFcn',@(src,event) setCLimManual());
-
-    uilabel(pClim,'Text','Min slider','Position',[420 60 70 22]);
-    sliderMin = uislider(pClim,'Position',[500 70 220 3],...
-        'Limits',[-80 0],'Value',-30);
-    uilabel(pClim,'Text','Max slider','Position',[420 20 70 22]);
-    sliderMax = uislider(pClim,'Position',[500 30 220 3],...
-        'Limits',[-80 0],'Value',0);
-    chkAuto = uicheckbox(pClim,'Text','Auto (mean→max)',...
-        'Position',[740 60 150 22],'Value',true);
-    chkFixed = uicheckbox(pClim,'Text','C axis fixed (mean→0)',...
-        'Position',[740 30 150 22],'Value',false);
-
-                    % === Terminal panel ===
-    pterminal = uipanel(centerP,'title','log window',...
-        'position',[centerW-(4*gap)-terminalW+2*gap gap terminalW terminalH]);
-    terminal = uitextarea(pterminal,'position',[0 0 terminalW terminalH-2*gap],...
-       'editable','off');      
-    
-    % Initialization of log panel
-    data.log_lines = {};
-    data.log_lines = logTerminal(sprintf('Initialize'),'N',data.log_lines);
-
-   % ================= Right column: Simulation panels ====================
-    pSimParam   = uipanel(fig,'Title','Simulation Parameters',...
-        'Position',[rightX ySimParam rightW hSimParam]);
-    pSimAlg = uipanel(fig,'Title','Simulation Algorithms',...
-        'Position',[rightX ySimButtons rightW hSimAlgorithms]);
-    pSimStatus  = uipanel(fig,'Title','Simulation Workspace',...
-        'Position',[rightX ySimStatus rightW hSimStatus]);
-    
-
-    
-                    % --- Simulation parameters ---
-    sim_labels = {'fs (Hz)','fc (Hz)','Cyclic Prefix',...
-              'OFDM Mode','Duration (s)',...
-              'Echo position (m)','Echo velocity (m/s)',...
-              'Attenuation','DPI','Clutter', 'File name'};
-    sim_defaults = {10e6, 650e6, '1/4', '2k', 0.1, ...
-                2000, 100, 0.5, 0, 0, 'sig_sim_iq'};
-    data.simulation.params = struct( ...
-        'fs', 10e6, ...
-        'fc', 650e6, ...
-        'Cyclic_Prefix','1/4', ...   % store as ratio string
-        'OFDM_Mode','2k', ...        % store as string
-        'Duration',0.1, ...
-        'Echo_position',2000, ...
-        'Echo_velocity',100, ...
-        'Attenuation',0.5, ...
-        'DPI', 0, ...
-        'Clutter',0, ...
-        'File_Name', 'sig_sim_iq');  % default save path
-    data.simulation.x_ref = 0;
-    data.simulation.x_surv = 0;
+    data.simulation = struct();
     data.simulation.hist = {};
-    data.simulation.active = struct('x_ref',0,'x_surv',0);
-    sim_fields = fieldnames(data.simulation.params);
-
-    y = hSimParam-50;
-    labelW = rightW/2 - gap;
-    editFieldW = labelW;
+    data.simulation.active = struct('x_ref',0, 'x_surv',0, 'x_echo', 0);
+    data.simulation.sim_lines = {};
+    data.log_lines = {};
     
-    for i=1:numel(sim_fields)
-        switch sim_fields{i}
-            case 'Cyclic_Prefix'
-                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
-                    'HorizontalAlignment','left');
-                uidropdown(pSimParam, ...
-                    'Items',{'0','1/4','1/8','1/16','1/32'}, ...
-                    'Value',sim_defaults{3}, ...
-                    'Position',[labelW+gap y editFieldW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam('Cyclic_Prefix',src.Value,'data.simulation.params'));   
-            case 'OFDM_Mode'
-                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
-                    'HorizontalAlignment','left');
-                uidropdown(pSimParam, ...
-                    'Items',{'2k','8k'}, ...
-                    'Value',sim_defaults{4}, ...
-                    'Position',[labelW+gap y editFieldW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam('OFDM_Mode',src.Value,'data.simulation.params'));
-            case 'DPI'
-                uicheckbox(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22],...
-                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
-            case 'Clutter'
-                uicheckbox(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
-            case 'File_Name'
-                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
-                    'HorizontalAlignment','left');
-                uieditfield(pSimParam,'Text','Value',sim_defaults{i}, ...
-                    'Position',[labelW+gap y editFieldW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
-            otherwise
-                uilabel(pSimParam,'Text',sim_labels{i},'Position',[gap y labelW 22], ...
-                    'HorizontalAlignment','left');
-                uieditfield(pSimParam,'numeric','Value',sim_defaults{i}, ...
-                    'Position',[labelW+gap y editFieldW 22], ...
-                    'ValueChangedFcn',@(src,event) setParam(sim_fields{i},src.Value,'data.simulation.params'));
-        end
-        y = y-26;
-        if y < 10, break; end
+    % Parallel Pool Check
+    if isempty(gcp('nocreate'))
+        parpool('threads');
     end
-   
+
+    % === UI CREATION ===
+    fig = uifigure('Name','Passive Radar App','Position',config.figPos);
+    
+    % Recalculate center width based on actual figure size
+    layout.centerW  = fig.Position(3) - layout.leftW - layout.rightW - 4*config.gap;
+
+    % --- Left Column: Parameters & Actions ---
+    [pFiles, pActions, pStatus] = createLeftPanel(fig, layout, config);
+    
+    % --- Right Column: Simulation ---
+    [pSimParam, pSimAlg, pSimStatus] = createRightPanel(fig, layout, config);
+    
+    % --- Center Column: Plotting ---
+    [ax, terminal, sliderMin, sliderMax, chkAuto, chkFixed, editCmin, editCmax] = createCenterPanel(fig, layout, config);
+
+    % --- Init Log ---
+    logTerminal('App Initialized', 'N');
+
+    % =====================================================================
+    %                       HELPER FUNCTIONS FOR UI
+    % =====================================================================
+    
+    function [pFiles, pActions, pStatus] = createLeftPanel(parent, l, c)
+        % Calculate Y positions (bottom-up)
+        yStatus  = c.gap;
+        yActions = yStatus + l.hStatus + c.gap;
+        yFiles   = yActions + l.hActions + c.gap;
+        
+        % Panels
+        pFiles   = uipanel(parent, 'Title','Parameters',       'Position',[c.gap yFiles l.leftW l.hFiles], 'Scrollable','on');
+        pActions = uipanel(parent, 'Title','Algorithms',       'Position',[c.gap yActions l.leftW l.hActions], 'Scrollable','on');
+        pStatus  = uipanel(parent, 'Title','Status / Workspace','Position',[c.gap yStatus l.leftW l.hStatus], 'Scrollable','on');
+        
+        % -- File Pickers (Top of Parameters) --
+        % Umieszczamy je na samej górze "wirtualnej" przestrzeni
+        % (Zostaną obsłużone w setupProcessingParams jako startowy offset)
+        
+        % -- Parameters Generation --
+        % Funkcja teraz sama zarządza pozycją guzików "Choose file" wewnątrz scrolla
+        setupProcessingParams(pFiles);
+        
+        % -- Action Buttons --
+        btns = {
+            'CAF - raw',         @(s,e) runCAF('orig');
+            'CAF - filtr close', @(s,e) runCAF('close');
+            'CAF - filtr wide',  @(s,e) runCAF('wide');
+            'CLEAN + CAF',       @(s,e) runCLEAN();
+            'CAF (Normal)',      @(s,e) runCAF('Normal');
+            'Plot Spectrum',     @(s,e) plotSpectrum();
+            'Correlation',       @(s,e) runXcorr();
+            'Plot Time',         @(s,e) runPlotTime()
+        };
+        
+        % Dynamic layout for Actions
+        btnH = 30; gap = 10;
+        contentH = numel(btns) * (btnH + gap) + 50; % Total height needed
+        startY = max(l.hActions - 40, contentH); % Start from top
+        
+        currentY = startY;
+        for i = 1:size(btns, 1)
+            uibutton(pActions, 'Text', btns{i,1}, 'Position', [20 currentY 250 btnH], 'ButtonPushedFcn', btns{i,2});
+            currentY = currentY - (btnH + gap);
+            if i == 3 
+                 uicheckbox(pActions,'Text','backward','Position',[275 currentY+(btnH+gap) 100 btnH], ...
+                     'ValueChangedFcn', @(src,~) setParam('back_filt', src.Value, 'data.params'));
+            end
+        end
+        
+        % -- Status Components --
+        createStatusPanelContent(pStatus, l.leftW, l.hStatus);
+    end
+
+    function setupProcessingParams(parentPanel)
+        % File Buttons at the top
+        topMargin = 40;
+        
+        % Param Definitions
+        % Format: Label, Default, FieldName, Type, Options/Extras (must exist for all rows)
+        paramDefs = {
+            'fs (Hz)', 10e6, 'fs', 'num', [];
+            'fc (Hz)', 650e6, 'fc', 'num', [];
+            'Max delay', 200, 'max_delay', 'num', [];
+            'Backward delay', 0, 'backward_delay', 'num', [];
+            'Doppler bins', 512, 'doppler_bins', 'num', [];
+            'R (Decimation)', 2750, 'R', 'num', [];
+            'FiltNear: Order', 4, 'filtOrder_close', 'num', [];
+            'Forget Fact (Near)', 0.99, 'forgetting_fact_close', 'num', [];
+            'BlockLen (Near)', 8192, 'blockLength_close', 'num', [];
+            'FiltWide: Order', 500, 'filtOrder_wide', 'num', [];
+            'Forget Fact (Wide)', 0.99999, 'forgetting_fact_wide', 'num', [];
+            'BlockLen (Wide)', 8192, 'blockLength_wide', 'num', [];
+            'Backward Filtering', 0, 'back_filt', 'num', [];
+            'Window Type', 'none', 'window_type', 'drop', {'none','hamming', 'hann', 'blackmann', 'kaiser'}
+        };
+        
+        rowH = 26;
+        numParams = size(paramDefs, 1);
+        
+        % Obliczamy całkowitą wysokość potrzebną na kontrolki + guziki plików
+        totalContentHeight = topMargin + (numParams * (rowH + 5)) + 20;
+        
+        % Jeśli panel jest mniejszy niż treść, startujemy od wyliczonej wysokości
+        % żeby scrollbar działał od góry.
+        currentY = max(parentPanel.Position(4), totalContentHeight) - 40;
+        
+        % File buttons
+        uibutton(parentPanel, 'Text','Choose ref',  'Position',[10 currentY 160 30], 'ButtonPushedFcn', @(~,~) loadFile('ref'));
+        uibutton(parentPanel, 'Text','Choose surv', 'Position',[190 currentY 160 30], 'ButtonPushedFcn', @(~,~) loadFile('surv'));
+        
+        currentY = currentY - 40; % Gap after buttons
+        
+        data.params = struct(); 
+        
+        for i = 1:numParams
+            lbl = paramDefs{i,1};
+            def = paramDefs{i,2};
+            fld = paramDefs{i,3};
+            typ = paramDefs{i,4};
+            opts = paramDefs{i,5};
+            
+            data.params.(fld) = def; 
+            
+            uilabel(parentPanel, 'Text', lbl, 'Position', [10 currentY 150 22], 'HorizontalAlignment', 'left');
+            
+            if strcmp(typ, 'num')
+                uieditfield(parentPanel, 'numeric', 'Value', def, ...
+                    'Position', [190 currentY 160 22], ...
+                    'ValueChangedFcn', @(src,~) setParam(fld, src.Value, 'data.params'));
+            elseif strcmp(typ, 'drop')
+                uidropdown(parentPanel, 'Items', opts, ...
+                    'Position', [190 currentY 160 22], ...
+                    'ValueChangedFcn', @(src,~) setParam(fld, src.Value, 'data.params'));
+            end
+            currentY = currentY - 30; % Move down
+        end
+    end
+
+    function createStatusPanelContent(parent, w, h)
+        % Layout constants inside Status Panel
+        margin = 10;
+        btnHeight = 30;
+        textAreaHeight = 100; % Fixed height for text info
+        
+        % Calculate Listbox Height dynamically to fill remaining space
+        % h is total panel height.
+        % We need: Top Margin + TextArea + Gap + Listbox + Gap + Buttons + Bottom Margin
+        % ListboxH = h - (10 + 100 + 10 + 30 + 10 + 20 title space)
+        
+        listboxY = margin + btnHeight + margin; 
+        listboxH = h - textAreaHeight - btnHeight - 4*margin - 20;
+        if listboxH < 50, listboxH = 50; end % Minimum safeguard
+        
+        % Text Area (Top)
+        uitextarea(parent, 'Position', [margin listboxY+listboxH+margin w-2*margin textAreaHeight], ...
+            'Editable', 'off', 'Tag', 'txtStatus');
+        
+        % History List (Middle - filling space)
+        uilabel(parent, 'Text', 'History:', 'Position', [margin listboxY+listboxH w-2*margin 20]);
+        uilistbox(parent, 'Position', [margin listboxY w-2*margin listboxH], 'Tag', 'lstHistory');
+        
+        % Buttons (Bottom)
+        btnY = margin;
+        btnW = (w - 4*margin) / 3;
+        
+        uibutton(parent, 'Text','Load',  'Position',[margin btnY btnW btnHeight],  'ButtonPushedFcn', @(~,~) loadHistory());
+        uibutton(parent, 'Text','Delete','Position',[margin+btnW+margin btnY btnW btnHeight], 'ButtonPushedFcn', @(~,~) delHistory());
+        uibutton(parent, 'Text','Reset', 'Position',[margin+2*(btnW+margin) btnY btnW btnHeight], 'ButtonPushedFcn', @(~,~) rstHistory());
+    end
+
+    function [pSimParam, pSimAlg, pSimStatus] = createRightPanel(parent, l, c)
+        rightX = parent.Position(3) - l.rightW - c.gap;
+        
+        ySimStatus  = c.gap + 100;
+        ySimButtons = ySimStatus + l.hSimStatus + c.gap;
+        ySimParam   = ySimButtons + l.hSimAlgorithms + c.gap;
+        
+        pSimParam   = uipanel(parent, 'Title','Sim Parameters',   'Position',[rightX ySimParam l.rightW l.hSimParam]);
+        pSimAlg     = uipanel(parent, 'Title','Sim Algorithms',   'Position',[rightX ySimButtons l.rightW l.hSimAlgorithms]);
+        pSimStatus  = uipanel(parent, 'Title','Sim Workspace',    'Position',[rightX ySimStatus l.rightW l.hSimStatus]);
+        
+        setupSimParams(pSimParam, l.rightW, l.hSimParam, c.gap);
+        
+        uibutton(pSimAlg, 'Text','Add echo',            'Position',[c.gap l.hSimAlgorithms-60 l.rightW-2*c.gap 30], 'ButtonPushedFcn', @(~,~) addEcho());
+        uibutton(pSimAlg, 'Text','Save signals to files','Position',[c.gap l.hSimAlgorithms-100 l.rightW-2*c.gap 30], 'ButtonPushedFcn', @(~,~) saveSimToFiles());
+        uibutton(pSimAlg, 'Text','Plot Pure Echo (Sim)', 'Position',[c.gap l.hSimAlgorithms-140 l.rightW-2*c.gap 30], 'ButtonPushedFcn', @(~,~) plotPureEcho(), 'FontWeight','bold');
+
+        uibutton(parent, 'Text','Refresh',           'Position',[rightX+c.gap 45+c.gap l.rightW-2*c.gap 30], 'ButtonPushedFcn', @(~,~) refreshSimWorkspace(pSimStatus));
+        uibutton(parent, 'Text','Set signals active','Position',[rightX+c.gap 15 l.rightW-2*c.gap 30],       'ButtonPushedFcn', @(~,~) setHistActive());
+    end
+
+    function setupSimParams(parent, w, h, gap)
+        simDefaults = struct(...
+            'fs', 10e6, 'fc', 650e6, 'Cyclic_Prefix', '1/4', 'OFDM_Mode', '2k', ...
+            'Duration', 0.1, 'Echo_position', 2000, 'Echo_velocity', 100, ...
+            'Attenuation', 0.5, 'DPI', 0, 'Clutter', 0, 'File_Name', 'sig_sim_iq');
+        
+        data.simulation.params = simDefaults;
         data.simulation.params.add_echo_counter = 1;
-
-        uibutton(pSimAlg,'Text','Add echo', ...
-        'Position',[gap hSimAlgorithms-60 rightW-2*gap 30], ...
-        'ButtonPushedFcn',@(src,event) addEcho());
-        uibutton(pSimAlg,'Text','Save signals to files', ...
-        'Position',[gap hSimAlgorithms-90-gap rightW-2*gap 30], ...
-        'ButtonPushedFcn',@(src,event) saveSimToFiles());
         
-        uibutton(fig,'Text','Refresh','Position',[rightX+gap 45+gap rightW-2*gap 30],...
-        'ButtonPushedFcn',@(src,event) refreshSimWorkspace(pSimStatus));
-        uibutton(fig,'Text','Set signals active','Position',[rightX+gap 15 rightW-2*gap 30],...
-        'ButtonPushedFcn',@(src,event) setHistActive());
-   
+        fields = fieldnames(simDefaults);
+        y = h - 50;
+        lblW = w/2 - gap;
         
-%-------------------------------------------------------------------------%
-                    % ===== Nested functions =====
+        for i = 1:numel(fields)
+            fld = fields{i};
+            val = simDefaults.(fld);
+            
+            if strcmp(fld, 'Cyclic_Prefix')
+                uilabel(parent,'Text',fld,'Position',[gap y lblW 22]);
+                uidropdown(parent, 'Items', {'0','1/4','1/8','1/16','1/32'}, 'Value', val, ...
+                    'Position',[lblW+gap y lblW 22], 'ValueChangedFcn', @(s,~) setParam(fld, s.Value, 'data.simulation.params'));
+            elseif strcmp(fld, 'OFDM_Mode')
+                uilabel(parent,'Text',fld,'Position',[gap y lblW 22]);
+                uidropdown(parent, 'Items', {'2k','8k'}, 'Value', val, ...
+                    'Position',[lblW+gap y lblW 22], 'ValueChangedFcn', @(s,~) setParam(fld, s.Value, 'data.simulation.params'));
+            elseif strcmp(fld, 'DPI') || strcmp(fld, 'Clutter')
+                uicheckbox(parent, 'Text', fld, 'Position', [gap y lblW 22], ...
+                    'ValueChangedFcn', @(s,~) setParam(fld, s.Value, 'data.simulation.params'));
+            elseif strcmp(fld, 'File_Name')
+                uilabel(parent,'Text',fld,'Position',[gap y lblW 22]);
+                uieditfield(parent, 'text', 'Value', val, 'Position',[lblW+gap y lblW 22], ...
+                    'ValueChangedFcn', @(s,~) setParam(fld, s.Value, 'data.simulation.params'));
+            else
+                uilabel(parent,'Text',fld,'Position',[gap y lblW 22]);
+                uieditfield(parent, 'numeric', 'Value', val, 'Position',[lblW+gap y lblW 22], ...
+                    'ValueChangedFcn', @(s,~) setParam(fld, s.Value, 'data.simulation.params'));
+            end
+            y = y - 26;
+        end
+    end
 
-                    % === File Handling ===
+    function [ax, terminal, sMin, sMax, cAuto, cFixed, eMin, eMax] = createCenterPanel(parent, l, c)
+        centerX   = l.leftW + 2*c.gap;
+        
+        yClim    = c.gap;
+        yAxes    = yClim + l.hClim + c.gap;
+        hAxes    = parent.Position(4) - yAxes - c.gap;
+        terminalW = l.centerW * 0.2;
+        
+        pCenter = uipanel(parent, "Title", "Plotting Panel", ...
+            "Position", [centerX c.gap l.centerW l.hClim+hAxes+c.gap]);
+        
+        % --- FIX: AXES MARGINS ---
+        % Zamiast wpychać osie na styk, dajemy im oddech
+        axMarginLeft = 50;  % Miejsce na label Osi Y
+        axMarginBottom = 50; % Miejsce na label Osi X
+        axW = l.centerW - c.gap - axMarginLeft - 20; % 20 zapasu z prawej
+        axH = hAxes - c.gap - axMarginBottom - 20;   % 20 zapasu z góry
+        
+        ax = uiaxes(pCenter, 'Position', [axMarginLeft axMarginBottom+l.hClim axW axH]);
+        title(ax,'CAF'); xlabel(ax,'Bistatic velocity (m/s)'); ylabel(ax,'Bistatic range (km)');
+        
+        % Clim Control Panel
+        pClim = uipanel(pCenter, 'Title','Scaling C axis', ...
+            'Position', [c.gap c.gap l.centerW-(4*c.gap)-terminalW l.hClim]);
+            
+        uilabel(pClim,'Text','C-min','Position',[10 60 50 22]);
+        eMin = uieditfield(pClim,'numeric','Value',-30, 'Position',[60 60 80 22]);
+        uilabel(pClim,'Text','C-max','Position',[160 60 50 22]);
+        eMax = uieditfield(pClim,'numeric','Value',0, 'Position',[210 60 80 22]);
+        
+        uibutton(pClim,'Text','Update','Position',[310 60 80 22], 'ButtonPushedFcn', @(~,~) setCLimManual());
+        
+        uilabel(pClim,'Text','Min slider','Position',[420 60 70 22]);
+        sMin = uislider(pClim,'Position',[500 70 220 3], 'Limits',[-80 0],'Value',-30, 'ValueChangedFcn', @(~,~) updateCLimFromSliders());
+        
+        uilabel(pClim,'Text','Max slider','Position',[420 20 70 22]);
+        sMax = uislider(pClim,'Position',[500 30 220 3], 'Limits',[-80 0],'Value',0, 'ValueChangedFcn', @(~,~) updateCLimFromSliders());
+        
+        cAuto = uicheckbox(pClim,'Text','Auto (mean→max)', 'Position',[740 60 150 22],'Value',true, 'ValueChangedFcn', @(~,~) updateCAFScaling());
+        cFixed = uicheckbox(pClim,'Text','C axis fixed (mean→0)', 'Position',[740 30 150 22],'Value',false, 'ValueChangedFcn', @(~,~) updateCAFScaling());
+        
+        % Terminal Panel
+        pTerm = uipanel(pCenter, 'Title','Log', 'Position',[l.centerW-terminalW-c.gap c.gap terminalW l.hClim]);
+        terminal = uitextarea(pTerm, 'Position', [0 0 terminalW l.hClim-20], 'Editable','off');
+    end
+
+    % =====================================================================
+    %                       LOGIC & CALLBACKS
+    % =====================================================================
+
+    % --- File Handling ---
     function loadFile(type)
-        [file,path] = uigetfile({'*.*'});
+        [file, path] = uigetfile({'*.*'});
         if isequal(file,0), return; end
-        filename = fullfile(path,file);
-        if endsWith(file, '.mat', 'IgnoreCase', true)
-            sig = struct2array(load(filename));
-        else
-            sig = read_complex_binary(filename);
-        end
-
-        sig = sig / rms(sig);
-        if strcmp(type,'ref')
-            data.ref = sig;
-            data.ref_filename = file;
-        else
-            data.surv = sig;
-            data.lastSurv = sig;
-            data.surv_filename = file;
-        end
-        updateStatus();
-
-    end
-    
-    function saveFile()
-        [file,path] = uiputfile('*.bin','Save simulated signal as',...
-            data.simulation.params.File_Name);
-        if isequal(file,0)
-            disp('User canceled file selection');
-        else
-            data.simulation.params.File_Name = fullfile(path,file);
-            fprintf("Save file set to: %s\n", data.simulation.params.File_Name);
-        end
-    end
-
-    function saveSimToFiles()
+        filename = fullfile(path, file);
         
-        saveDir = 'data/simulation';
-        sim_save_del(data.simulation.active.name, ...
-            data.simulation.active.x_ref, data.simulation.active.x_surv,saveDir);
-        fprintf("Signals saved\n");
+        try
+            if endsWith(file, '.mat', 'IgnoreCase', true)
+                loaded = load(filename);
+                sig = struct2array(loaded);
+            else
+                sig = read_complex_binary(filename);
+            end
+            sig = sig / rms(sig);
+            
+            if strcmp(type,'ref')
+                data.ref = sig;
+                data.ref_filename = file;
+            else
+                data.surv = sig;
+                data.lastSurv = sig;
+                data.surv_filename = file;
+            end
+            updateStatusText();
+            logTerminal(sprintf('Loaded %s: %s', type, file), 'A');
+        catch ME
+            uialert(fig, ME.message, 'Load Error');
+        end
     end
 
-                    % === Parameters handling ===
-    function setParam(name,val,dest)
-        switch dest
-            case 'data.params'
-                data.params.(name) = val;
-            case 'data.simulation.params'
-                data.simulation.params.(name) = val;
+    % --- Parameter Setter ---
+    function setParam(name, val, destStr)
+        if strcmp(destStr, 'data.params')
+            data.params.(name) = val;
+        elseif strcmp(destStr, 'data.simulation.params')
+            data.simulation.params.(name) = val;
         end
-        updateStatus();
+        updateStatusText();
     end
-        
-                    % === CAF Algorithms ===
+
+    % --- CAF Execution ---
     function runCAF(mode)
-
-        data.log_lines = logTerminal(sprintf('CAF Running ...'),'N', data.log_lines);
+        logTerminal(sprintf('CAF Running (%s)...', mode),'N');
         
         if ~isfield(data,'ref') || ~isfield(data,'surv')
-            uialert(fig,'Załaduj pliki!','Błąd'); return;
+            uialert(fig,'Load signals first!','Error'); return;
         end
-        fs = data.params.fs;
-        fc = data.params.fc;
-        max_delay = data.params.max_delay;
-        doppler_bins = data.params.doppler_bins;
-        R = data.params.R;
-        window_type = data.params.window_type;
-        back_delay = data.params.backward_delay;
-        back_filt = data.params.back_filt;
+        p = data.params;
+        
         if strcmp(mode,'orig') || ~isfield(data,'lastSurv')
             surv_in = data.surv;
         else
@@ -356,285 +380,74 @@ function passive_radar_app
             case 'orig'
                 surv_clean = data.surv;
             case 'close'
-                surv_clean = clutter_removal(data.ref,surv_in,...
-                    data.params.filtOrder_close,...
-                    data.params.forgetting_fact_close,...
-                    data.params.blockLength_close, back_filt);
+                surv_clean = clutter_removal(data.ref, surv_in, p.filtOrder_close, p.forgetting_fact_close, p.blockLength_close, p.back_filt);
             case 'wide'
-                
-                surv_clean = clutter_removal(data.ref,surv_in,...
-                    data.params.filtOrder_wide,...
-                    data.params.forgetting_fact_wide,...
-                    data.params.blockLength_wide,back_filt);     
+                surv_clean = clutter_removal(data.ref, surv_in, p.filtOrder_wide, p.forgetting_fact_wide, p.blockLength_wide, p.back_filt);
             otherwise
                 surv_clean = surv_in;
         end
         
-        [caf, delay_axis, doppler_axis] = CAF(data.ref,surv_clean,fs,fc,max_delay,doppler_bins,R,window_type,back_delay);
-
-        plotCAF(caf,delay_axis,doppler_axis,['CAF: ' mode]);
-
+        [caf, d_ax, v_ax] = CAF(data.ref, surv_clean, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
+        
         data.lastCAF = caf;
         data.lastSurv = surv_clean;
-        data.delay_axis = delay_axis;
-        data.doppler_axis = doppler_axis;
-        axes.delay = delay_axis;
-        axes.doppler = doppler_axis;
-        addToHistory(caf,surv_clean,window_type,mode,axes);
-
-        updateStatus();
-        data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
-        data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
-        data.log_lines = logTerminal(sprintf('Surv signal power: %.2f dB',pow2db(mean(abs(data.lastSurv) .^2)) ),'A', data.log_lines);
+        data.delay_axis = d_ax;
+        data.doppler_axis = v_ax;
+        
+        plotCAF(caf, d_ax, v_ax, ['CAF: ' mode]);
+        
+        maxP = max(caf(:));
+        meanP = mean(caf(:));
+        sigP  = pow2db(mean(abs(surv_clean).^2));
+        
+        logTerminal(sprintf('Max power: %.2f dB', maxP), 'N');
+        logTerminal(sprintf('Mean power: %.2f dB', meanP), 'A');
+        logTerminal(sprintf('Signal power: %.2f dB', sigP), 'A');
+        
+        axStruct.delay = d_ax; axStruct.doppler = v_ax;
+        addToHistory(caf, surv_clean, p.window_type, mode, axStruct);
+        updateStatusText();
     end
- 
+
     function runCLEAN()
         if ~isfield(data,'lastCAF')
-            uialert(fig,'First calculate CAF!','ERROR'); return;
+            uialert(fig,'Calculate CAF first!','Error'); return;
         end
-        [x_clean, r_km, v_ms] = CLEAN(data.lastCAF, data.ref, data.lastSurv,...
-            data.params.fs, data.params.fc, data.params.max_delay,...
-            data.params.doppler_bins, data.params.R);
-
-        msg = sprintf('Object found:\n\nRange = %.2f km\nVelocity = %.2f m/s\n\nRemove?',...
-                      r_km, v_ms);
+        p = data.params;
+        [x_clean, r_km, v_ms] = CLEAN(data.lastCAF, data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R);
+        
+        msg = sprintf('Object found:\nRange = %.2f km\nVelocity = %.2f m/s\n\nRemove?', r_km, v_ms);
         choice = questdlg(msg,'CLEAN','Yes','No','No');
-
+        
         if strcmp(choice,'Yes')
             data.lastSurv = x_clean;
+            [caf, d_ax, v_ax] = CAF(data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
             
-            [caf, delay_axis, doppler_axis] = CAF(data.ref,data.lastSurv,...
-                data.params.fs, data.params.fc,...
-                data.params.max_delay, data.params.doppler_bins, data.params.R,data.params.window_type,data.params.backward_delay);
-            plotCAF(caf,delay_axis,doppler_axis,'CAF after CLEAN iteration');
             data.lastCAF = caf;
-            data.delay_axis = delay_axis;
-            data.doppler_axis = doppler_axis;
-            axes.delay = delay_axis;
-            axes.doppler = doppler_axis;
-            addToHistory(caf,x_clean,data.params.window_type,'CLEAN',axes);
+            plotCAF(caf, d_ax, v_ax, 'CAF after CLEAN');
+            
+            axStruct.delay = d_ax; axStruct.doppler = v_ax;
+            addToHistory(caf, x_clean, p.window_type, 'CLEAN', axStruct);
+            logTerminal(sprintf('Target removed: R=%.2fkm V=%.2fm/s', r_km, v_ms), 'A');
         end
-        updateStatus();
-    end
-    
-    function plotSpectrum()
-        if ~isfield(data,'ref') && ~isfield(data,'surv')
-            uialert(fig,'Choose signal','Błąd'); return;
-        end
-        
-        
-        plot_spectrum(data.ref,data.params.fs);
-        title("Ref spectrum");
-
-        plot_spectrum(data.lastSurv,data.params.fs);
-        title("Surv spectrum");
-        
-        % choice = questdlg('Signal Spectrum','Choose Signal','ref','surv','ref');
-        % 
-        % if (strcmp(choice, 'ref'))
-        %     if isfield(data,'ref')
-        %         plot_spectrum(data.ref,data.params.fs);
-        %         title("Ref spectrum");
-        %     else
-        %         uialert(fig,'Choose signal','Błąd'); return;
-        %     end
-        % elseif(strcmp(choice,'surv')) 
-        %     if isfield(data,'lastSurv')
-        %         plot_spectrum(data.lastSurv,data.params.fs);
-        %         title("Surv spectrum");
-        %     elseif isfield(data, 'surv')
-        %         plot_spectrum(data.surv,data.params.fs);
-        %         title("Surv spectrum");
-        %     else
-        %         uialert(fig,'Choose signal','Błąd'); return;
-        %     end
-        % else
-        %     return;
-        % end
-    end
-    
-    function runXcorr()
-        [corr, lags] = xcorr(data.lastSurv,data.ref,data.params.max_delay);
-        corr = abs(corr)/max(abs(corr));
-        D = 3e8 * lags./ data.params.fs;
-        figure;
-        plot(D/1000, mag2db(abs(corr)));
-        title("Cross-correlation");
-        fprintf("XCorr called\n");
     end
 
-    function runPlotTime()
-        if ~isfield(data,'ref') && ~isfield(data,'surv')
-            uialert(fig,'Choose signal','Błąd'); return;
-        end
-          
-        N = length(data.ref);
-        time_ax = linspace(0,N/data.params.fs,N);
-
-        figure;
-        plot(time_ax,data.ref);
-        title("Time ref");
-        
-        figure;
-        plot(time_ax,data.lastSurv);
-        title("Time surv");
-    end
-                    
-                    % === History management ===
-    function addToHistory(caf,surv_state,window_type,tag,axes)
-        entry.caf = caf;
-        entry.surv = surv_state;
-        entry.window_type = window_type; 
-        entry.mode = tag;
-        entry.axes = axes;
-        entry.ref_filename = data.ref_filename;
-        entry.surv_filename = data.surv_filename;
-        data.history{end+1} = entry;
-        data.histTitles{end+1} = sprintf('%d: %s',numel(data.history),tag);
-        lstHistory.Items = data.histTitles;
-    end
-
-    function loadHistory()
-        idx = lstHistory.Value;
-        if isempty(idx), return; end
-        % znajdź indeks
-        pos = find(strcmp(lstHistory.Items,idx));
-        if isempty(pos), return; end
-        entry = data.history{pos};
-        caf = entry.caf;
-        surv_state = entry.surv;
-        mode = entry.mode;
-        window_type = entry.window_type;
-        axes = entry.axes;
-        % ustaw jako bieżące
-        data.lastCAF = caf;
-        data.lastSurv = surv_state;
-        data.lastWindow_type = window_type;
-        plotCAF(caf,axes.delay,axes.doppler,'History: ' + string(mode));
-        updateStatus();
-        logTerminal(['Ref: ' entry.ref_filename],'A',data.log_lines);
-        logTerminal(['Surv: ' entry.surv_filename],'A',data.log_lines);
-    end
-
-    function delHistory()
-        idx = lstHistory.Value;
-        if isempty(idx), return; end
-        pos = find(strcmp(lstHistory.Items,idx));
-        if isempty(pos), return; end
-        data.history(pos) = [];
-        data.histTitles(pos) = [];
-        lstHistory.Items = data.histTitles;
-    end
-
-    function rstHistory()
-        data.history = {};
-        data.histTitles = {};
-        lstHistory.Items = data.histTitles;
-        data.lastSurv = data.surv;
-    end
-    
-                    % === Simulation helper ===
-    function sim_sig = simulationGenSig()
-        fprintf("\nSimulation function called\n");
-    
-        % Map cyclic prefix string → numeric length
-        switch data.simulation.params.OFDM_Mode
-            case '2k'
-                Nfft = 2048;
-            case '8k'
-                Nfft = 8192;
-        end
-    
-        switch data.simulation.params.Cyclic_Prefix
-            case '0',    cpLen = 0;
-            case '1/4',  cpLen = Nfft/4;
-            case '1/8',  cpLen = Nfft/8;
-            case '1/16', cpLen = Nfft/16;
-            case '1/32', cpLen = Nfft/32;
-        end
-    
-        sim_sig = runDVBTsim(data.simulation.params.fs, ...
-            cpLen, ...
-            data.simulation.params.Duration, ...
-            data.simulation.params.OFDM_Mode);
-        data.simulation.hist{data.simulation.params.add_echo_counter}.x_ref = sim_sig;
-    end
-    
-    function addEcho()
-        fprintf("\nAdd echo called\n");
-        x_ref = simulationGenSig();
-        
-
-        params = data.simulation.params;
-        fs = data.simulation.params.fs;
-        range_m = data.simulation.params.Echo_position;
-        velocity_ms = data.simulation.params.Echo_velocity;
-        fc = data.simulation.params.fc;
-        atten = data.simulation.params.Attenuation;
-        dpi = data.simulation.params.DPI;
-        %isClutter = data.simulation.params.Clutter;
-        counter = data.simulation.params.add_echo_counter;
-        
-        
-        % clutter(1).delay = 120;    % m
-        % clutter(1).mag   = 0.25;   % -12 dB
-        % clutter(2).delay = 600;    % m
-        % clutter(2).mag   = 0.12;   % -19 dB
-        % clutter(3).delay = 1800;   % m
-        % clutter(3).mag   = 0.05;   % -26 dB
-        % clutter(4).delay = 3000;   % m
-        % clutter(4).mag   = 0.50;   % -6 dB
-
-        
-        N = 1000;
-        clutter_range_m = 1+ rand(1,N)*30e3;
-        clutter_range_m = sort(clutter_range_m);
-        raw = 1./clutter_range_m;
-        clutter_mag = raw / max(raw);
-        data.simulation.params.clutter_mag = clutter_mag;
-        data.simulation.params.clutter_range_m = clutter_range_m;
-        % clutter_range_m = [120; 600; 1800; 3000];
-        % clutter_mag_dB = [0.25; 0.12; 0.05; 0.5];
-        range_m     = [150, 150, 150,1300]; 
-        velocity_ms = [200,  25,   -200,-250];
-        atten       = [0.0001, 0.002, 0.0001,0.0005];
-
-        if(data.simulation.params.Clutter)
-            clutter = create_clutter(clutter_range_m,clutter_mag);
-        else 
-            clutter = 0;
-        end
-        
-        if(~(data.simulation.active.x_ref == 0))
-            raw_signal = data.simulation.active.x_ref;
-            x_surv_first = data.simulation.active.x_surv;
-            signal_name = [data.simulation.active.name '_2'];
-            [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
-            range_m,velocity_ms,fc,atten,dpi,clutter);
-            x_surv = x_surv .* x_surv_first;
-            data.simulation.hist{counter}.name = signal_name;
-            data.simulation.params.File_Name = signal_name;
-        else
-            raw_signal = data.simulation.hist{counter}.x_ref;       
-            [x_ref, x_surv] = simulate_target_ref_surv_signals(raw_signal,fs, ...
-            range_m,velocity_ms,fc,atten,dpi,clutter);
-            data.simulation.hist{counter}.name = data.simulation.params.File_Name;
-        end
-        data.simulation.hist{counter}.x_ref = x_ref;
-        data.simulation.hist{counter}.x_surv = x_surv;
-        
-        updateSimWorkspace();
-        data.simulation.params.add_echo_counter = counter+1;
-    end
-
-    % === Plot helper ===
-    function plotCAF(caf,delay_axis,doppler_axis,ttl)
-        if nargin < 2 || isempty(delay_axis)
+    % --- Plotting Helpers ---
+    function plotCAF(caf, delay_axis, doppler_axis, ttl)
+        if isempty(delay_axis)
             delay_axis = 1:size(caf,1);
             doppler_axis = 1:size(caf,2);
         end
-        imagesc(ax,doppler_axis,delay_axis,caf); axis(ax,'xy');
+        imagesc(ax, doppler_axis, delay_axis, caf); 
+        axis(ax,'xy');
         colormap(ax,'jet'); colorbar(ax);
+        title(ax, ttl);
+        updateCAFScaling(); 
+    end
+
+    function updateCAFScaling()
+        if ~isfield(data,'lastCAF'), return; end
+        caf = data.lastCAF;
         if chkAuto.Value
             ax.CLim = [mean(caf(:)), max(caf(:))];
         elseif chkFixed.Value
@@ -642,161 +455,314 @@ function passive_radar_app
         else
             ax.CLim = [editCmin.Value, editCmax.Value];
         end
-        title(ax,ttl);
-        disp("Done");
     end
 
-    function updateStatus()
-        lines = {};
-        if isfield(data,'ref')
-            lines{end+1} = sprintf('Ref file: %s  (%d samples)', ...
-                safeStr(data,'ref_filename'), length(data.ref));
-        else
-            lines{end+1} = 'Ref file: not loaded';
-        end
-        if isfield(data,'surv')
-            lines{end+1} = sprintf('Surv file: %s (%d samples)', ...
-                safeStr(data,'surv_filename'), length(data.surv));
-        else
-            lines{end+1} = 'Surv file: not loaded';
-        end
-        if isfield(data,'lastCAF')
-            lambda  = freq2wavelen(data.params.fc);
-            T = length(data.ref)/data.params.fs;
-            sz = size(data.lastCAF);
-            lines{end+1} = sprintf('CAF size: %d x %d',sz(1),sz(2));
-            data.log_lines = logTerminal(sprintf('Max power: %.2f dB',max(data.lastCAF(:))),'N',data.log_lines);
-            data.log_lines = logTerminal(sprintf('Mean power: %.2f dB',mean(data.lastCAF(:))),'A',data.log_lines);
-            lines{end+1} = sprintf('Distance resolution: %.1f m',3e8/data.params.fs);
-            lines{end+1} = sprintf('Velocity resolution: %.3f m/s',lambda/T);
-            lines{end+1} = sprintf('Signal duration: %.3f s',T);
-            if isfield(data,'lastWindow_type')
-                data.log_lines = logTerminal(sprintf('Used window: %s',data.lastWindow_type),'A',data.log_lines);
-            else
-               data.log_lines = logTerminal(sprintf('Used window: %s','Nan'),'A',data.log_lines); 
-            end
-        else
-            lines{end+1} = 'CAF: not computed yet';
-        end
-        
-        
-        txtStatus.Value = lines;
-    end
-
-    line_counter = 0;
-    sim_lines = {};
-    y_start = 50;
-    line_height = 30;
-    gap = 5;
-
-    function updateSimWorkspace()
-        line_counter = line_counter + 1;
-        
-        y_pos = hSimStatus - y_start - (line_counter-1)*(line_height + gap);
-    
-        data.simulation.sim_lines{line_counter} = sim_workspace_line_create(pSimStatus, ...
-            [0, y_pos, rightW-2*gap, line_height], ...
-            data.simulation.params.File_Name, data.simulation.params, ...
-            @onDeleteLine);
-        
-    
-    end
-    
-    function onDeleteLine(signalName)
-        % Find index of deleted line
-        idx = find(cellfun(@(L) isfield(L,'signalName') && strcmp(L.signalName,signalName), sim_lines));
-        if isempty(idx), return; end
-    
-        % Delete from list
-        sim_lines(idx) = [];
-        line_counter = numel(sim_lines);
-    
-        % Re-stack remaining lines
-        for k = 1:numel(sim_lines)
-            newY = hSimStatus - y_start - (k-1)*(line_height + gap);
-            updateLinePosition(sim_lines{k}, newY);
-        end
-    end
-
-    function updateLinePosition(lineStruct, newY)
-
-        if isempty(lineStruct) || ~isstruct(lineStruct)
-            return;
-        end
-        fns = fieldnames(lineStruct);
-        for i = 1:numel(fns)
-            h = lineStruct.(fns{i});
-            if ishghandle(h)
-                pos = h.Position;
-                pos(2) = newY;
-                h.Position = pos;
-            end
-        end
-    end
-
-    function refreshSimWorkspace(parent)
-        delete(allchild(parent));
-        data.simulation.hist = {};
-        data.simulation.active.x_ref = 0;
-        data.simulation.active.x_surv = 0;
-        line_counter = 0;
-        data.simulation.params.add_echo_counter= 1;
-        data.simulation.sim_lines = {};
-    end
-
-    function setHistActive()
-        for i=1:numel(data.simulation.hist)
-            if(data.simulation.sim_lines{i}.isActive.Value)
-                data.simulation.active = data.simulation.hist{i};
-                return;
-            end
-        end
-    end
-
-    function s = safeStr(d,field)
-        if isfield(d,field)
-            s = d.(field); 
-        else 
-            s = '(n/a)';
-        end
-    end
-    
-    function lines = logTerminal(info,type,lines) 
-        if (type == 'N')
-            lines = {};
-            lines{end+1} = info;
-        else 
-            lines{end+1} = info;
-        end
-
-        terminal.Value = lines;
-        data.log_lines = lines;
-
-    end
-    % === CLim helpers ===
     function setCLimManual()
-        ax.CLim = [editCmin.Value editCmax.Value];
-        chkAuto.Value = false;
-        chkFixed.Value = false;
-    end
-        
-    sliderMin.ValueChangedFcn = @(~,~) updateCLimFromSliders();
-    sliderMax.ValueChangedFcn = @(~,~) updateCLimFromSliders();
-    chkAuto.ValueChangedFcn   = @(~,~) updateCAFScaling();
-    chkFixed.ValueChangedFcn  = @(~,~) updateCAFScaling();
-    
-    function updateCAFScaling()
-        if chkAuto.Value && isfield(data,'lastCAF')
-            ax.CLim = [mean(data.lastCAF(:)) max(data.lastCAF(:))];
-        elseif chkFixed.Value && isfield(data,'lastCAF')
-            ax.CLim = [mean(data.lastCAF(:)) 0];
-        end
+        ax.CLim = [editCmin.Value, editCmax.Value];
+        chkAuto.Value = false; chkFixed.Value = false;
     end
     
     function updateCLimFromSliders()
-        ax.CLim = [sliderMin.Value sliderMax.Value];
-        chkAuto.Value   = false;
-        chkFixed.Value  = false;
+        ax.CLim = [sliderMin.Value, sliderMax.Value];
+        chkAuto.Value = false; chkFixed.Value = false;
     end
 
+    function plotSpectrum()
+        figure('Name','Signal Spectrum');
+        tiledlayout(2,1);
+        nexttile;
+        if isfield(data,'ref'), plot_spectrum(data.ref, data.params.fs); title("Ref Spectrum"); end
+        nexttile;
+        if isfield(data,'lastSurv'), plot_spectrum(data.lastSurv, data.params.fs); title("Surv Spectrum"); end
+    end
+
+    function runXcorr()
+        if ~isfield(data,'lastSurv') || ~isfield(data,'ref'), return; end
+        [corr, lags] = xcorr(data.lastSurv, data.ref, data.params.max_delay);
+        corr = abs(corr)/max(abs(corr));
+        D = 3e8 * lags ./ data.params.fs;
+        figure; plot(D/1000, mag2db(abs(corr))); title("Cross-correlation"); xlabel('Dist (km)'); ylabel('dB');
+    end
+
+    function runPlotTime()
+        if ~isfield(data,'ref') || ~isfield(data,'surv'), return; end
+        N = length(data.ref);
+        t = linspace(0, N/data.params.fs, N);
+        figure; 
+        subplot(2,1,1); plot(t, data.ref); title("Ref Time");
+        subplot(2,1,2); plot(t, data.lastSurv); title("Surv Time");
+    end
+
+    % --- HISTORY MANAGEMENT ---
+    function addToHistory(caf, surv_state, w_type, tag, axStruct)
+        entry = struct();
+        entry.caf = caf;
+        entry.surv = surv_state;
+        entry.window_type = w_type;
+        entry.mode = tag;
+        entry.axes = axStruct;
+        entry.ref_filename = safeStr(data, 'ref_filename');
+        entry.surv_filename = safeStr(data, 'surv_filename');
+        
+        data.history{end+1} = entry;
+        data.histTitles{end+1} = sprintf('%d: %s', numel(data.history), tag);
+        
+        lst = findobj(fig, 'Tag', 'lstHistory');
+        lst.Items = data.histTitles;
+    end
+
+    function loadHistory()
+        lst = findobj(fig, 'Tag', 'lstHistory');
+        idx = lst.Value;
+        if isempty(idx), return; end
+        
+        pos = find(strcmp(lst.Items, idx));
+        if isempty(pos), return; end
+        
+        if (isempty(data.history))
+            return;
+        else
+            entry = data.history{pos};
+        end
+        data.lastCAF = entry.caf;
+        data.lastSurv = entry.surv;
+        data.lastWindow_type = entry.window_type;
+        
+        plotCAF(entry.caf, entry.axes.delay, entry.axes.doppler, ['History: ' entry.mode]);
+        updateStatusText();
+        
+        logTerminal('--- History Loaded ---', 'N');
+        logTerminal(['Ref: ' entry.ref_filename], 'A');
+        logTerminal(['Surv: ' entry.surv_filename], 'A');
+        
+        maxP = max(entry.caf(:));
+        meanP = mean(entry.caf(:));
+        sigP = pow2db(mean(abs(entry.surv).^2));
+        
+        logTerminal(sprintf('Max power: %.2f dB', maxP), 'A');
+        logTerminal(sprintf('Mean power: %.2f dB', meanP), 'A');
+        logTerminal(sprintf('Signal power: %.2f dB', sigP), 'A');
+    end
+
+    function delHistory()
+        lst = findobj(fig, 'Tag', 'lstHistory');
+        idx = lst.Value;
+        if isempty(idx), return; end
+        pos = find(strcmp(lst.Items, idx));
+        if isempty(pos), return; end
+        
+        data.history(pos) = [];
+        data.histTitles(pos) = [];
+        lst.Items = data.histTitles;
+    end
+
+    function rstHistory()
+        data.history = {};
+        data.histTitles = {};
+        % findobj(data, 'Tag', 'lstHistory').Items = {};
+        if isfield(data,'surv'), data.lastSurv = data.surv; end
+        updateStatusText();
+
+    end
+
+    % --- STATUS UPDATES ---
+    function updateStatusText()
+        lines = {};
+        if isfield(data,'ref')
+            lines{end+1} = sprintf('Ref: %s (%d samps)', safeStr(data,'ref_filename'), length(data.ref));
+        else
+            lines{end+1} = 'Ref: N/A';
+        end
+        if isfield(data,'surv')
+            lines{end+1} = sprintf('Surv: %s (%d samps)', safeStr(data,'surv_filename'), length(data.surv));
+        else
+            lines{end+1} = 'Surv: N/A';
+        end
+        
+        if isfield(data, 'lastCAF')
+            lambda = freq2wavelen(data.params.fc);
+            T = length(data.ref)/data.params.fs;
+            lines{end+1} = sprintf('Res: %.1f m | %.2f m/s', 3e8/data.params.fs, lambda/T);
+            lines{end+1} = sprintf('Dur: %.3f s', T);
+        end
+        
+        txt = findobj(fig, 'Tag', 'txtStatus');
+        txt.Value = lines;
+    end
+
+    function logTerminal(info, type)
+        if strcmp(type, 'N')
+            data.log_lines = {info};
+        else
+            data.log_lines{end+1} = info;
+        end
+        terminal.Value = data.log_lines;
+    end
+
+    % === SIMULATION LOGIC ===
+    
+    function sim_sig = simulationGenSig()
+        p = data.simulation.params;
+        switch p.OFDM_Mode
+            case '2k', Nfft = 2048;
+            case '8k', Nfft = 8192;
+        end
+        
+        cp_frac = str2num(p.Cyclic_Prefix); 
+        if isempty(cp_frac), cp_frac = 0; end
+        cpLen = Nfft * cp_frac;
+        
+        sim_sig = runDVBTsim(p.fs, cpLen, p.Duration, p.OFDM_Mode);
+    end
+
+    function addEcho()
+        
+        p = data.simulation.params;
+        counter = p.add_echo_counter;
+        
+        if data.simulation.active.x_ref == 0
+             data.simulation.hist{counter}.x_ref = simulationGenSig();
+             raw_signal = data.simulation.hist{counter}.x_ref;
+             base_name = p.File_Name;
+        else
+             raw_signal = data.simulation.active.x_ref;
+             base_name = [data.simulation.active.name '_2'];
+        end
+        
+        if p.Clutter
+             N_clut = 1000;
+             c_range = sort(1 + rand(1, N_clut)*30e3);
+             c_mag = (1./c_range); c_mag = c_mag/max(c_mag);
+             clutter = create_clutter(c_range, c_mag);
+        else
+             clutter = 0;
+        end
+        
+        range_m = p.Echo_position;
+        vel_ms  = p.Echo_velocity;
+        atten   = p.Attenuation;
+        
+        range_m = [300 300 300];
+        vel_ms = [100 400 -200];
+        atten = [0.1 0.0001 0.0001];
+        
+        [x_ref, x_surv, x_echo_pure] = simulate_target_ref_surv_signals(...
+            raw_signal, p.fs, range_m, vel_ms, p.fc, atten, p.DPI, clutter);
+            
+        if data.simulation.active.x_ref ~= 0
+             x_surv = x_surv .* data.simulation.active.x_surv;
+        end
+        
+        data.simulation.hist{counter}.name = base_name;
+        data.simulation.hist{counter}.x_ref = x_ref;
+        data.simulation.hist{counter}.x_surv = x_surv;
+        data.simulation.hist{counter}.x_echo = x_echo_pure;
+        
+        data.simulation.x_echo = x_echo_pure; 
+        
+        updateSimWorkspaceLines();
+        data.simulation.params.add_echo_counter = counter + 1;
+        logTerminal(sprintf('Echo added: R=%.0fm V=%.0fm/s', range_m, vel_ms), 'A');
+    end
+
+    function plotPureEcho()
+        % === FIX: Bezpieczniejsze sprawdzanie dostępności danych ===
+        
+        % Sprawdź czy "aktywny" sygnał echa jest wektorem (ma dane), czy tylko domyślnym zerem
+        hasActiveData = numel(data.simulation.active.x_echo) > 1;
+        
+        % Sprawdź czy ostatni element historii posiada dane echa
+        hasHistData = ~isempty(data.simulation.hist) && ...
+                      isfield(data.simulation.hist{end}, 'x_echo') && ...
+                      numel(data.simulation.hist{end}.x_echo) > 1;
+
+        % Jeśli nie ma danych ani tu, ani tu -> błąd
+        if ~hasActiveData && ~hasHistData
+             uialert(fig, 'No echo generated yet.', 'Info'); return;
+        end
+        
+        % === Wybór sygnału do wyświetlenia ===
+        if hasActiveData
+             sig = data.simulation.active.x_echo;
+             nm = 'Active Echo';
+        else
+             sig = data.simulation.hist{end}.x_echo;
+             nm = ['Echo from ' data.simulation.hist{end}.name];
+        end
+        
+        fft_bins = data.params.doppler_bins;
+        % Rysowanie
+        figure('Name', 'Pure Echo Signal');
+        subplot(3,1,1); plot(real(sig)); title([nm ' (Real)']); grid on;
+        subplot(3,1,2); plot(abs(sig)); title('Magnitude'); grid on;
+        subplot(3,1,3); plot(linspace(-fft_bins/2,fft_bins/2,fft_bins),fftshift(fft(abs(sig),fft_bins)));
+    end
+
+    function saveSimToFiles()
+        if data.simulation.active.x_ref == 0
+             uialert(fig,'No active simulation to save','Error'); return;
+        end
+        saveDir = 'data/simulation';
+        if ~exist(saveDir,'dir')
+            mkdir(saveDir);
+        end
+        
+        sim_save_del(data.simulation.active.name, ...
+            data.simulation.active.x_ref, data.simulation.active.x_surv, saveDir);
+        logTerminal(['Saved sim signals to ' saveDir], 'A');
+    end
+
+    function updateSimWorkspaceLines()
+        delete(pSimStatus.Children); 
+        
+        yStart = layout.hSimStatus - 40;
+        hItem = 30;
+        
+        for k = 1:numel(data.simulation.hist)
+            item = data.simulation.hist{k};
+            yPos = yStart - (k-1)*(hItem+5);
+            
+            uicheckbox(pSimStatus, 'Text', item.name, 'Position', [10 yPos 150 22], ...
+                'Value', false, 'Tag', num2str(k), ...
+                'ValueChangedFcn', @(src,~) setHistActiveUI(src, k));
+            
+            uibutton(pSimStatus, 'Text', 'X', 'Position', [170 yPos 30 22], ...
+                'ButtonPushedFcn', @(~,~) deleteSimItem(k));
+        end
+    end
+
+    function setHistActiveUI(src, idx)
+        chks = findobj(pSimStatus, 'Type', 'uicheckbox');
+        for i=1:numel(chks)
+            if chks(i) ~= src, chks(i).Value = false; end
+        end
+        
+        if src.Value
+            data.simulation.active = data.simulation.hist{idx};
+            logTerminal(['Active Sim: ' data.simulation.hist{idx}.name], 'A');
+        else
+            data.simulation.active = struct('x_ref',0,'x_surv',0, 'x_echo',0);
+        end
+    end
+    
+    function setHistActive()
+       logTerminal('Select active signal via checkboxes in Sim Workspace.', 'A');
+    end
+
+    function deleteSimItem(idx)
+        data.simulation.hist(idx) = [];
+        updateSimWorkspaceLines();
+    end
+
+    function refreshSimWorkspace(parent)
+        delete(parent.Children);
+        data.simulation.hist = {};
+        data.simulation.active = struct('x_ref',0,'x_surv',0,'x_echo',0);
+        data.simulation.params.add_echo_counter = 1;
+        logTerminal('Sim workspace cleared', 'A');
+    end
+
+    function s = safeStr(d, f)
+        if isfield(d,f), s = d.(f); else, s = 'n/a'; end
+    end
 end
