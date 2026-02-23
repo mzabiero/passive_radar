@@ -1,4 +1,4 @@
-function [caf_matrix_dB, delay_axis_km, doppler_axis_ms] = ...
+function [caf_matrix, delay_axis_km, doppler_axis_ms] = ...
     CAF(x_ref, x_surv, fs, fc, max_delay, doppler_bins, R, window_type, back_delay)
 
 disp("CAF running...");
@@ -52,12 +52,12 @@ parfor (i = 1:num_delays, worker_number)
 
     % Doppler FFT
     ym_fft = fftshift(fft(ym_dec, doppler_bins));
-    caf_matrix(i, :) = abs(ym_fft);
+    caf_matrix(i, :) = ym_fft;
 
 end
 
 % Convert to dB
-caf_matrix_dB = mag2db(caf_matrix + eps);
+% caf_matrix_dB = mag2db(caf_matrix + eps);
 
 % Axis computations
 delay_samples = delays;

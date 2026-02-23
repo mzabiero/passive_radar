@@ -1,7 +1,7 @@
 function window_ym = window_CAF(len,type) 
     
     
-        fprintf("Creating window: %s\n", type);
+        %fprintf("Creating window: %s\n", type);
         window_size = ceil(len);
 
         switch lower(type)

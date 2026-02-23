@@ -16,7 +16,7 @@ function passive_radar_app
     layout.hFiles   = floor(leftAvailableH * 0.40); % 40% na parametry
     layout.hActions = floor(leftAvailableH * 0.35); % 35% na przyciski
     layout.hStatus  = leftAvailableH - layout.hFiles - layout.hActions; % Reszta na historię
-    
+        
     % Heights - Right Panel
     layout.hSimParam      = 360;
     layout.hSimAlgorithms = 280;
@@ -45,7 +45,9 @@ function passive_radar_app
     
     % Recalculate center width based on actual figure size
     layout.centerW  = fig.Position(3) - layout.leftW - layout.rightW - 4*config.gap;
-
+    % --- Menu Bar ---
+    menuBar(fig);
+    
     % --- Left Column: Parameters & Actions ---
     [pFiles, pActions, pStatus] = createLeftPanel(fig, layout, config);
     
@@ -61,7 +63,45 @@ function passive_radar_app
     % =====================================================================
     %                       HELPER FUNCTIONS FOR UI
     % =====================================================================
-    
+    function menuBar(fig_menu)
+        mImport = uimenu(fig_menu,"Text","Import");
+        mitem = uimenu(mImport,"Text","&Load app state");
+        mitem.MenuSelectedFcn = @MenuSelectedImport;
+        mExport = uimenu(fig_menu,"Text","Export");
+        mExport_item = uimenu(mExport,"Text","&Save app state");
+        mExport_item.MenuSelectedFcn = @MenuSelectedExport;
+        mCLEAN_Panel = uimenu(fig_menu,"Text","CLEAN Panel");
+        mCLEAN_Panel.MenuSelectedFcn = @CLEAN_panel;
+
+        function MenuSelectedExport(src,event)
+            [file, path] = uiputfile('*.mat', 'Save App State');
+            if ischar(file) && ischar(path)
+                filename = fullfile(path, file);
+                save(filename, 'data');
+                logTerminal('App State Saved', 'N');
+            else
+                logTerminal('Save operation canceled', 'E');
+            end
+        end
+        function MenuSelectedImport(src,event)
+            [file, path] = uigetfile('*.*');
+            filename = fullfile(path, file);
+            if isfile(filename)
+                data_temp = load(filename);
+                data = data_temp.data;
+                logTerminal('App State Loaded', 'N');
+            else
+                logTerminal('File not found', 'E');
+            end
+        end
+        function CLEAN_panel(src,event)
+            CLEAN_p = uifigure("WindowStyle","normal","Name","CLEAN Panel","Position",[100,100,1000,1000]);
+            ax_clean = uiaxes(CLEAN_p,"Position",[10,10,900,500]);
+
+            pCLEAN(data.ref, data.lastSurv, data.params,ax_clean);
+        end
+    end
+
     function [pFiles, pActions, pStatus] = createLeftPanel(parent, l, c)
         % Calculate Y positions (bottom-up)
         yStatus  = c.gap;
@@ -121,9 +161,10 @@ function passive_radar_app
         paramDefs = {
             'fs (Hz)', 10e6, 'fs', 'num', [];
             'fc (Hz)', 650e6, 'fc', 'num', [];
-            'Max delay', 200, 'max_delay', 'num', [];
+            'Correlation delay', 1000, 'corr_delay', 'num', [];
+            'Max delay', 50, 'max_delay', 'num', [];
             'Backward delay', 0, 'backward_delay', 'num', [];
-            'Doppler bins', 512, 'doppler_bins', 'num', [];
+            'Doppler bins', 2048, 'doppler_bins', 'num', [];
             'R (Decimation)', 2750, 'R', 'num', [];
             'FiltNear: Order', 4, 'filtOrder_close', 'num', [];
             'Forget Fact (Near)', 0.99, 'forgetting_fact_close', 'num', [];
@@ -198,8 +239,8 @@ function passive_radar_app
         
         % History List (Middle - filling space)
         uilabel(parent, 'Text', 'History:', 'Position', [margin listboxY+listboxH w-2*margin 20]);
-        uilistbox(parent, 'Position', [margin listboxY w-2*margin listboxH], 'Tag', 'lstHistory');
-        
+        uilistbox(parent, 'Position', [margin listboxY w*2/3 listboxH], 'Tag', 'lstHistory');
+        uibutton(parent,'Text', 'Save Signal', 'Position',[w*2/3+margin listboxY w/3 listboxH],'ButtonPushedFcn', @(~,~) saveHistory());
         % Buttons (Bottom)
         btnY = margin;
         btnW = (w - 4*margin) / 3;
@@ -283,14 +324,13 @@ function passive_radar_app
             "Position", [centerX c.gap l.centerW l.hClim+hAxes+c.gap]);
         
         % --- FIX: AXES MARGINS ---
-        % Zamiast wpychać osie na styk, dajemy im oddech
         axMarginLeft = 50;  % Miejsce na label Osi Y
         axMarginBottom = 50; % Miejsce na label Osi X
         axW = l.centerW - c.gap - axMarginLeft - 20; % 20 zapasu z prawej
         axH = hAxes - c.gap - axMarginBottom - 20;   % 20 zapasu z góry
         
         ax = uiaxes(pCenter, 'Position', [axMarginLeft axMarginBottom+l.hClim axW axH]);
-        title(ax,'CAF'); xlabel(ax,'Bistatic velocity (m/s)'); ylabel(ax,'Bistatic range (km)');
+        title(ax,'CAF'); xlabel(ax,'Prędkość bistatyczna(m/s)','FontSize',16); ylabel(ax,'Odległość Bistatyczna (km)','FontSize',16);
         
         % Clim Control Panel
         pClim = uipanel(pCenter, 'Title','Scaling C axis', ...
@@ -328,13 +368,13 @@ function passive_radar_app
         filename = fullfile(path, file);
         
         try
-            if endsWith(file, '.mat', 'IgnoreCase', true)
+            if endsWith(file, '.m', 'IgnoreCase', true)
                 loaded = load(filename);
                 sig = struct2array(loaded);
             else
                 sig = read_complex_binary(filename);
             end
-            sig = sig / rms(sig);
+            % sig = sig / rms(sig);
             
             if strcmp(type,'ref')
                 data.ref = sig;
@@ -387,67 +427,61 @@ function passive_radar_app
                 surv_clean = surv_in;
         end
         
-        [caf, d_ax, v_ax] = CAF(data.ref, surv_clean, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
+        [caf_mag, d_ax, v_ax] = CAF(data.ref, surv_clean, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
         
-        data.lastCAF = caf;
+        caf_dB = CAF_dB(caf_mag);
+        data.lastCAF_mag = caf_mag;
         data.lastSurv = surv_clean;
         data.delay_axis = d_ax;
         data.doppler_axis = v_ax;
-        
-        plotCAF(caf, d_ax, v_ax, ['CAF: ' mode]);
-        
-        maxP = max(caf(:));
-        meanP = mean(caf(:));
-        sigP  = pow2db(mean(abs(surv_clean).^2));
-        
+
+        plotCAF(caf_mag, d_ax, v_ax, ['CAF '],ax);
+        updateCAFScaling();
+        maxP = max(caf_dB(:));
+        meanP = mean(caf_dB(:));
+        sigP_surv_clean  = mag2db(mean(abs(surv_clean).^2));
+        sigP_ref  = mag2db(mean(abs(data.ref).^2));
         logTerminal(sprintf('Max power: %.2f dB', maxP), 'N');
         logTerminal(sprintf('Mean power: %.2f dB', meanP), 'A');
-        logTerminal(sprintf('Signal power: %.2f dB', sigP), 'A');
+        logTerminal(sprintf('Ref signal power: %.2f dB', sigP_ref), 'A');
+        logTerminal(sprintf('Surv signal power: %.2f dB', sigP_surv_clean), 'A');
         
         axStruct.delay = d_ax; axStruct.doppler = v_ax;
-        addToHistory(caf, surv_clean, p.window_type, mode, axStruct);
+        addToHistory(caf_mag, surv_clean, p.window_type, mode, axStruct);
         updateStatusText();
     end
 
     function runCLEAN()
-        if ~isfield(data,'lastCAF')
+        if ~isfield(data,'lastCAF_mag')
             uialert(fig,'Calculate CAF first!','Error'); return;
         end
         p = data.params;
-        [x_clean, r_km, v_ms] = CLEAN(data.lastCAF, data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R);
+        [x_clean, r_km, v_ms] = CLEAN(data.lastCAF_mag, data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R);
         
         msg = sprintf('Object found:\nRange = %.2f km\nVelocity = %.2f m/s\n\nRemove?', r_km, v_ms);
         choice = questdlg(msg,'CLEAN','Yes','No','No');
         
         if strcmp(choice,'Yes')
             data.lastSurv = x_clean;
-            [caf, d_ax, v_ax] = CAF(data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
+            [caf_mag, d_ax, v_ax] = CAF(data.ref, data.lastSurv, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
             
-            data.lastCAF = caf;
-            plotCAF(caf, d_ax, v_ax, 'CAF after CLEAN');
-            
+            % caf_dB = CAF_dB(caf_mag);
+            data.lastCAF_mag = caf_mag;
+
+            plotCAF(caf_mag, d_ax, v_ax, 'CAF after CLEAN',ax);
+            updateCAFScaling();
             axStruct.delay = d_ax; axStruct.doppler = v_ax;
-            addToHistory(caf, x_clean, p.window_type, 'CLEAN', axStruct);
+            addToHistory(caf_mag, x_clean, p.window_type, 'CLEAN', axStruct);
             logTerminal(sprintf('Target removed: R=%.2fkm V=%.2fm/s', r_km, v_ms), 'A');
         end
     end
 
     % --- Plotting Helpers ---
-    function plotCAF(caf, delay_axis, doppler_axis, ttl)
-        if isempty(delay_axis)
-            delay_axis = 1:size(caf,1);
-            doppler_axis = 1:size(caf,2);
-        end
-        imagesc(ax, doppler_axis, delay_axis, caf); 
-        axis(ax,'xy');
-        colormap(ax,'jet'); colorbar(ax);
-        title(ax, ttl);
-        updateCAFScaling(); 
-    end
+    
 
     function updateCAFScaling()
-        if ~isfield(data,'lastCAF'), return; end
-        caf = data.lastCAF;
+        if ~isfield(data,'lastCAF_mag'), return; end
+        caf = CAF_dB(data.lastCAF_mag);
         if chkAuto.Value
             ax.CLim = [mean(caf(:)), max(caf(:))];
         elseif chkFixed.Value
@@ -478,10 +512,10 @@ function passive_radar_app
 
     function runXcorr()
         if ~isfield(data,'lastSurv') || ~isfield(data,'ref'), return; end
-        [corr, lags] = xcorr(data.lastSurv, data.ref, data.params.max_delay);
-        corr = abs(corr)/max(abs(corr));
+        [corr, lags] = xcorr(data.ref, data.lastSurv, data.params.corr_delay);
+        %corr = abs(corr)/max(abs(corr));
         D = 3e8 * lags ./ data.params.fs;
-        figure; plot(D/1000, mag2db(abs(corr))); title("Cross-correlation"); xlabel('Dist (km)'); ylabel('dB');
+        figure; plot(lags, mag2db(abs(corr))); title("Cross-correlation"); xlabel('Xcorr lags'); ylabel('dB');
     end
 
     function runPlotTime()
@@ -524,24 +558,28 @@ function passive_radar_app
         else
             entry = data.history{pos};
         end
-        data.lastCAF = entry.caf;
+        data.lastCAF_mag = entry.caf;
         data.lastSurv = entry.surv;
         data.lastWindow_type = entry.window_type;
+        caf = CAF_dB(entry.caf);
         
-        plotCAF(entry.caf, entry.axes.delay, entry.axes.doppler, ['History: ' entry.mode]);
-        updateStatusText();
-        
+        doppler_bins = data.params.doppler_bins;
+        doppler_ax = -doppler_bins/2:doppler_bins/2-1;
+        %plotCAF(entry.caf, doppler_ax, entry.axes.doppler, ['History: ' entry.mode]);
+        plotCAF(entry.caf, entry.axes.delay, entry.axes.doppler, ['History: ' entry.mode],ax);
+            updateStatusText();
+        updateCAFScaling();
         logTerminal('--- History Loaded ---', 'N');
         logTerminal(['Ref: ' entry.ref_filename], 'A');
         logTerminal(['Surv: ' entry.surv_filename], 'A');
         
-        maxP = max(entry.caf(:));
-        meanP = mean(entry.caf(:));
-        sigP = pow2db(mean(abs(entry.surv).^2));
+        maxP = max(caf(:));
+        meanP = mean(caf(:));
+        sigP = mag2db(mean(abs(entry.surv).^2));
         
         logTerminal(sprintf('Max power: %.2f dB', maxP), 'A');
         logTerminal(sprintf('Mean power: %.2f dB', meanP), 'A');
-        logTerminal(sprintf('Signal power: %.2f dB', sigP), 'A');
+        logTerminal(sprintf('Signal power: %.4f dB', sigP), 'A');
     end
 
     function delHistory()
@@ -562,7 +600,23 @@ function passive_radar_app
         % findobj(data, 'Tag', 'lstHistory').Items = {};
         if isfield(data,'surv'), data.lastSurv = data.surv; end
         updateStatusText();
+    end
 
+    function saveHistory()
+        lst = findobj(fig, 'Tag', 'lstHistory');
+        idx = lst.Value;
+        if isempty(idx), return; end
+        
+        pos = find(strcmp(lst.Items, idx));
+        if isempty(pos), return; end
+        
+        if (isempty(data.history))
+            return;
+        else
+            surv = data.history{pos}.surv;
+        end
+        
+        save_comlex_binary(surv,'data/edited_save.dat');
     end
 
     % --- STATUS UPDATES ---
@@ -579,7 +633,7 @@ function passive_radar_app
             lines{end+1} = 'Surv: N/A';
         end
         
-        if isfield(data, 'lastCAF')
+        if isfield(data, 'lastCAF_mag')
             lambda = freq2wavelen(data.params.fc);
             T = length(data.ref)/data.params.fs;
             lines{end+1} = sprintf('Res: %.1f m | %.2f m/s', 3e8/data.params.fs, lambda/T);
@@ -644,7 +698,7 @@ function passive_radar_app
         
         range_m = [300 300 300];
         vel_ms = [100 400 -200];
-        atten = [0.1 0.0001 0.0001];
+        atten = [0.1 0.0001*0 0.0001*0];
         
         [x_ref, x_surv, x_echo_pure] = simulate_target_ref_surv_signals(...
             raw_signal, p.fs, range_m, vel_ms, p.fc, atten, p.DPI, clutter);

@@ -1,165 +1,142 @@
 function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
         caf_matrix, x_ref, x_surv, fs, fc, max_delay, doppler_bins, R)
-% CLEAN - Usuwa echo używając ścisłej interpolacji 3-punktowej.
+% CLEAN_FINAL - Usuwa echo z wykorzystaniem interpolacji i ułamkowego opóźnienia.
+%
+% WAŻNE: caf_matrix musi być ZESPOLONA (surowa), a nie w dB!
 
-    if nargin < 8 || isempty(R)
-        R = 1; 
-    end
+    if nargin < 8 || isempty(R), R = 1; end
     
     c = 3e8; 
     lambda = c / fc;
+    fs_dec = fs / R; % Częstotliwość próbkowania CAF
     
     x_ref = x_ref(:);
     x_surv = x_surv(:);
     N = length(x_ref);
 
-    % --- 1. Znalezienie zgrubnego piku (na siatce) ---
-    % Używamy abs() - amplituda liniowa jest lepsza do interpolacji 
-    % paraboli blisko szczytu niż logarytmiczna (dB), choć obie działają.
-    mag_matrix = caf_matrix;
-    [~, linear_idx] = max(caf_matrix(:));
+    % --- 1. Znalezienie piku na module (Linear Magnitude) ---
+    % Używamy abs(), aby znaleźć energię. Max na liczbach zespolonych nie ma sensu.
+    % Jeśli Twoja caf_matrix jest w dB, to TU JEST BŁĄD w wywołaniu funkcji.
+    mag_matrix = abs(caf_matrix);
+    [~, linear_idx] = max(mag_matrix(:));
     [delay_idx_int, doppler_idx_int] = ind2sub(size(mag_matrix), linear_idx);
 
-    % --- 2. Interpolacja 3-Punktowa z wizualizacją ---
-    % Tworzymy okno debugowania tylko dla pierwszego wywołania lub zawsze (opcjonalnie)
-    figure('Name', 'CLEAN Exact Interpolation', 'NumberTitle', 'off');
-    tiledlayout(2,1);
-
-    % A. Interpolacja Dopplera (oś X)
-    nexttile;
-    delta_doppler = interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 2, 'Doppler');
+    % --- 2. Interpolacja 3-Punktowa (Paraboliczna) ---
+    % Znajdujemy ułamkowe przesunięcia delty
+    delta_doppler = interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 2);
+    delta_delay   = interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 1);
+    
+    % Precyzyjne indeksy (float)
     doppler_idx_float = doppler_idx_int + delta_doppler;
-    
-    % B. Interpolacja Opóźnienia (oś Y)
-    nexttile;
-    delta_delay = interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 1, 'Delay');
-    delay_idx_float = delay_idx_int + delta_delay;
+    delay_idx_float   = delay_idx_int   + delta_delay;
 
-    % --- 3. Obliczenie fizycznych parametrów ---
+    % --- 3. Fizyka (Obliczenie parametrów) ---
     
-    % Opóźnienie (pamiętamy o decymacji R i że indeks 1 to 0s)
-    delay_axis_samp = 0:max_delay-1;
-    delay_axis_m = c .* delay_axis_samp ./ fs;
-    % bistatic_range_m = delay_axis_m(delay_idx_int - 1);
-    tau_samples_caf = (delay_idx_float - 1); 
-    tau_samples_high_res = tau_samples_caf; 
+    % A. Delay: Indeks 1 w CAF to 0 opóźnienia. Mnożymy przez R (decymacja)
+    % delay_idx_float jest w próbkach zdecymowanych (fs_dec)
+    tau_samples_dec = delay_idx_float - 1; 
+    tau_samples_full = tau_samples_dec ; % Opóźnienie w pełnym fs
     
-    bistatic_range_km = (c * (tau_samples_high_res / fs)) / 1000;
+    bistatic_range_km = (c * (tau_samples_full / fs)) / 1000;
 
-    % Doppler
-    fs_caf = fs / R; 
-    freq_resolution = fs_caf / doppler_bins;
-    
-    % Przeliczenie indeksu na Hz (zakładając zero w połowie - fftshift)
-    % Używamy floor(doppler_bins/2) + 1 jako środka (DC)
-    fd = (doppler_idx_float - (floor(doppler_bins/2) + 1)) * fre;
+    % B. Doppler: Wyśrodkowanie osi częstotliwości
+    freq_res = fs_dec / doppler_bins;
+    % Zakładamy, że DC (0Hz) jest w binie floor(N/2)+1
+    bin_offset = floor(doppler_bins/2) + 1;
+    fd = (doppler_idx_float - bin_offset) * freq_res;
     
     bistatic_velocity = fd * (lambda / 2);
 
-    % --- 4. Rekonstrukcja sygnału ---
+    % --- 4. Rekonstrukcja z Ułamkowym Opóźnieniem (Sinc Interpolation) ---
+    % Zwykłe round() powoduje błędy. Musimy użyć filtra sinc, aby przesunąć
+    % sygnał o ułamek próbki (np. 10.4 próbki).
     
-    % A. Opóźnienie (Round do najbliższej próbki)
-    tau_int = round(tau_samples_caf);
+    d = tau_samples_full;
+    d_int = floor(d);
+    d_frac = d - d_int;
     
-    if tau_int >= N
-         x_ref_delayed = zeros(N, 1);
+    % Generowanie filtra Sinc przesuniętego o d_frac
+    L_kernel = 30; % Długość połówkowa filtra (im więcej tym dokładniej, ale wolniej)
+    n_k = -L_kernel:L_kernel;
+    h = sinc(n_k - d_frac) .* hann(2*L_kernel+1)'; % Windowed Sinc
+    h = h / sum(h); % Normalizacja energii
+
+    % Przesunięcie całkowite (Integer Delay)
+    if d_int >= N
+        x_ref_final = zeros(N,1);
     else
-         x_ref_delayed = [zeros(tau_int, 1); x_ref(1:end-tau_int)];
+        % Splot 'same' centruje wynik, więc musimy uważać na indeksy.
+        % Dla uproszczenia w CLEAN przyjmuje się często podejście:
+        % 1. Shift integer. 2. Filter fractional.        
+        % Prostsze podejście (Shift then Filter):
+        temp = [zeros(d_int,1); x_ref(1:max(1, end-d_int))];
+        % Teraz delikatne przesunięcie o d_frac filtrem
+        x_ref_final = conv(temp, h, 'same'); 
+        
+        % Korekta długości po splocie
+        x_ref_final = x_ref_final(1:N);
     end
 
-    % B. Doppler (Precyzyjna faza)
-    t_vec = (0:N-1).' / fs; 
+    % --- 5. Rekonstrukcja Dopplera i LS ---
+    t_vec = (0:N-1).' / fs;
     doppler_phasor = exp(1i * 2 * pi * fd * t_vec);
     
-    echo_model = x_ref_delayed .* doppler_phasor;
-
-    % --- 5. Least Squares (Amplituda zespolona) ---
-    numerator = x_surv' * echo_model;       
-    denominator = echo_model' * echo_model; 
+    echo_model = x_ref_final .* doppler_phasor;
     
-    if denominator < 1e-10
-        alpha_est = 0;
+    % Least Squares (Dopasowanie amplitudy i fazy)
+    % alpha = (h' * y) / (h' * h)
+    denom = echo_model' * echo_model;
+    if abs(denom) < 1e-12
+        alpha = 0;
     else
-        alpha_est = numerator / denominator;
+        alpha = (echo_model' * x_surv) / denom;
     end
     
     % --- 6. Odejmowanie ---
-    echo_estimated = alpha_est * echo_model;
+    echo_estimated = alpha * echo_model;
     x_surv_clean = x_surv - echo_estimated;
-    
-    fprintf('CLEAN Exact: Bin(%.2f, %.2f) -> R=%.2f m, V=%.2f m/s\n', ...
+
+    % --- Debug Plot ---
+    % Rysujemy interpolację dla pewności
+    figure; clf;
+    tiledlayout(2,1);
+    nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 2, true); title('Doppler Interp');
+    nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 1, true); title('Delay Interp');
+
+    fprintf('CLEAN Final: Bin(%.2f, %.2f) -> R=%.2f m, V=%.2f m/s\n', ...
         delay_idx_float, doppler_idx_float, bistatic_range_km*1000, bistatic_velocity);
 end
 
-% --- Funkcja pomocnicza: Interpolacja 3-punktowa ---
-function delta = interpolate_3point(M, r, c, dim, label)
-    % M - macierz amplitud (liniowa, abs)
-    % r, c - współrzędne piku całkowitego
-    % dim - 1 (Delay/Wiersze), 2 (Doppler/Kolumny)
-    
+% --- Pomocnicza: Interpolacja ---
+function delta = interpolate_3point(M, r, c, dim, do_plot)
+    if nargin < 5, do_plot = false; end
     [rows, cols] = size(M);
     
-    % Pobranie 3 punktów: y1 (lewy/górny), y2 (środek), y3 (prawy/dolny)
-    if dim == 1 % Delay (Wiersze)
-        if r <= 1 || r >= rows
-            delta = 0; title([label ': Edge case']); return; 
-        end
+    if dim == 1 % Delay
+        if r <= 1 || r >= rows, delta=0; return; end
         vals = M(r-1 : r+1, c);
-        x_idx = -1:1;
         center_idx = r;
-    else % Doppler (Kolumny)
-        if c <= 1 || c >= cols
-            delta = 0; title([label ': Edge case']); return; 
-        end
-        vals = M(r, c-1 : c+1).'; % Transpozycja na wektor pionowy
-        x_idx = -1:1;
+    else % Doppler
+        if c <= 1 || c >= cols, delta=0; return; end
+        vals = M(r, c-1 : c+1).';
         center_idx = c;
     end
     
-    y1 = vals(1);
-    y2 = vals(2); % To jest nasz pik z max()
-    y3 = vals(3);
-    
-    % Wzór na wierzchołek paraboli przechodzącej przez (-1,y1), (0,y2), (1,y3)
-    % delta = (y1 - y3) / (2 * (y1 - 2*y2 + y3))
+    y1 = vals(1); y2 = vals(2); y3 = vals(3);
     denom = 2 * (y1 - 2*y2 + y3);
     
-    if abs(denom) < 1e-10
-        delta = 0; % Płasko lub linia prosta
-    else
-        delta = (y1 - y3) / denom;
+    if abs(denom) < 1e-10, delta = 0;
+    else, delta = (y1 - y3) / denom; end
+    
+    if abs(delta) > 0.6, delta = 0; end
+    
+    if do_plot
+        x = -1:1;
+        plot(x, vals, 'yo-'); hold on;
+        x_fine = linspace(-1,1,50);
+        a = (y1 - 2*y2 + y3)/2; b = (y3 - y1)/2; c_par = y2;
+        plot(x_fine, a*x_fine.^2 + b*x_fine + c_par, 'r--');
+        plot(delta, a*delta^2 + b*delta + c_par, 'g*');
+        hold off; grid on;
     end
-    
-    % Zabezpieczenie (delta powinna być w [-0.5, 0.5] jeśli y2 jest max)
-    if abs(delta) > 0.6
-        delta = 0; 
-    end
-
-    % --- Rysowanie Debug ---
-    % Punkty pomiarowe
-    plot(x_idx + center_idx, vals, 'bo', 'MarkerFaceColor', 'b', 'DisplayName', 'Samples'); 
-    hold on; grid on;
-    
-    % Analityczna parabola dla wizualizacji
-    % y = a*x^2 + b*x + c
-    % c = y2
-    % b = (y3 - y1) / 2
-    % a = (y1 - 2*y2 + y3) / 2
-    param_c = y2;
-    param_b = (y3 - y1) / 2;
-    param_a = (y1 - 2*y2 + y3) / 2;
-    
-    x_fine = linspace(-1.5, 1.5, 50);
-    y_fine = param_a * x_fine.^2 + param_b * x_fine + param_c;
-    
-    plot(x_fine + center_idx, y_fine, 'r--', 'DisplayName', 'Parabola fit');
-    
-    % Zaznaczenie wyliczonego piku
-    peak_val = param_a * delta^2 + param_b * delta + param_c;
-    plot(delta + center_idx, peak_val, 'g*', 'MarkerSize', 10, 'LineWidth', 2, 'DisplayName', 'Interp. Peak');
-    
-    title(sprintf('%s: Center %d, Delta %.4f', label, center_idx, delta));
-    xlabel('Index'); ylabel('Amplitude (Lin)');
-    legend('Location','best');
-    hold off;
 end

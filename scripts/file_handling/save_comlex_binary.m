@@ -4,7 +4,6 @@ function save_complex_binary(sig, fname)
 % sig   : complex baseband signal (vector)
 % fname : output filename (.dat)
 
-    
     fid = fopen(fname, 'wb'); % open file in append mode
     if fid < 0
         error('Could not open file %s for writing.', fname);

@@ -9,7 +9,9 @@ function x_surv_clean = clutter_removal( ...
     if back_filt > 0
         ref_shifted = [x_ref(back_filt+1:end); zeros(back_filt,1)];
     else
-        ref_shifted = x_ref;
+        back_filt = abs(back_filt);
+        ref_shifted = [zeros(back_filt,1); x_ref(1:end-back_filt)];
+        %ref_shifted = x_ref;
     end
 
     x_surv_clean = complex(zeros(N,1));
