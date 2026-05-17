@@ -1,8 +1,6 @@
 function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
         caf_matrix, x_ref, x_surv, fs, fc, max_delay, doppler_bins, R)
 % CLEAN_FINAL - Usuwa echo z wykorzystaniem interpolacji i ułamkowego opóźnienia.
-%
-% WAŻNE: caf_matrix musi być ZESPOLONA (surowa), a nie w dB!
 
     if nargin < 8 || isempty(R), R = 1; end
     
@@ -98,10 +96,10 @@ function [x_surv_clean, bistatic_range_km, bistatic_velocity] = CLEAN(...
 
     % --- Debug Plot ---
     % Rysujemy interpolację dla pewności
-    figure; clf;
-    tiledlayout(2,1);
-    nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 2, true); title('Doppler Interp');
-    nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 1, true); title('Delay Interp');
+    % figure; clf;
+    % tiledlayout(2,1);
+    % nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 2, true); title('Doppler Interp');
+    % nexttile; interpolate_3point(mag_matrix, delay_idx_int, doppler_idx_int, 1, true); title('Delay Interp');
 
     fprintf('CLEAN Final: Bin(%.2f, %.2f) -> R=%.2f m, V=%.2f m/s\n', ...
         delay_idx_float, doppler_idx_float, bistatic_range_km*1000, bistatic_velocity);

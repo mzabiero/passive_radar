@@ -44,10 +44,9 @@ parfor (i = 1:num_delays, worker_number)
     end
 
     % Decimation
-    ym_dec = decimate(ym, R);
-    %ym_dec = resample(ym,1,R);
-    %ym_filt = filter(decim_filt_coeffs,1,ym);
-    %ym_dec = ym_filt(1:R:end);
+    %ym_dec = decimate(ym, R);
+    ym_dec = resample(ym,1,R);
+    % Windowing
     if is_window
         ym_dec = ym_dec .* window_ym;
     end

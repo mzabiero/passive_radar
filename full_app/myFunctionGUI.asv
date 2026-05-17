@@ -563,12 +563,12 @@ function passive_radar_app
         data.lastWindow_type = entry.window_type;
         caf = CAF_dB(entry.caf);
         
-        doPlot = 1;
+        doPlot = 0;
 
         if(doPlot)
             figure;
             
-            wiersze = 1:10; 
+            wiersze = 1:20; 
 
             plot(data.doppler_axis, caf(wiersze,:)');
             etykiety = "Rząd " + string(wiersze);
