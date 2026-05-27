@@ -29,7 +29,6 @@ classdef RadarProcessor < handle
         end
 
         function obj = calculateCAF()
-
             
         end
     end
