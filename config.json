@@ -1,0 +1,25 @@
+{
+  "p_signals": {
+    "fs": 10000000,
+    "fc": 500000000,
+    "length_s": 1,
+    "numSamples": 10000000,
+    "ref_startSample": 0,
+    "ref_stopSample": 10000000,
+    "surv_startSample": 0,
+    "surv_stopSample": 10000000
+  },
+  "p_filters": {
+    "orderNear": 5,
+    "forgettingFactNear": 0.9996,
+    "orderFar": 100,
+    "forgettingFactFar": 0.99999
+  },
+  "p_caf": {
+    "rangeStart_m": 0,
+    "rangeStop_m": 200,
+    "velRange_ms": 300,
+    "fftSize": 2048,
+    "corrRange": 2000
+  }
+}

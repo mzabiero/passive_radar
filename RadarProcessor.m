@@ -6,10 +6,10 @@ classdef RadarProcessor < handle
         x_ref (:,1) double
         x_surv (:,1) double
 
-        CAF_matrix = double
+        CAF_matrix double
     end
 
-    methods 
+    methods (Access = public)
         function obj = RadarProcessor(initialFs, initialFc)
             obj.Fs = initialFs;
             obj.Fc = initialFc;
