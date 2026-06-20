@@ -568,11 +568,11 @@ function passive_radar_app
         if(doPlot)
             figure;
             
-            wiersze = 1:10; 
+            wiersze = 1:150; 
 
             plot(data.doppler_axis, caf(wiersze,:)');
-            etykiety = "Rząd " + string(wiersze);
-            legend(etykiety);
+            %etykiety = "Rząd " + string(wiersze);
+            %legend(etykiety);
         end
         doppler_bins = data.params.doppler_bins;
         doppler_ax = -doppler_bins/2:doppler_bins/2-1;
