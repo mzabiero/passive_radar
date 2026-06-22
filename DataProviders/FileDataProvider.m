@@ -1,16 +1,22 @@
 classdef FileDataProvider < BaseDataProvider
     properties
-        FilePaths
+        FilesPath
         CurrentIndex = 1;
+        NumFiles
     end
 
     methods
         function obj = FileDataProvider(path)
-            obj.FilePaths = path;
+            if nargin >= 1
+                obj.FilesPath = path;
+            else
+                return;
+            end
         end
+
         function [ref,surv,params] = getNextChunk(obj)
-            if obj.CurrentIndex <= length(obj.FilePaths)
-                data = load(obj.FilePaths{obj.CurrentIndex});
+            if obj.CurrentIndex <= length(obj.FilesPath)
+                data = load(obj.FilesPath{obj.CurrentIndex});
                 ref = data.ref;
                 surv = data.surv;
                 params = data.params;
@@ -19,6 +25,14 @@ classdef FileDataProvider < BaseDataProvider
                 ref = [];
                 surv = [];
                 params = {};
+            end
+        end
+
+        function numFiles =  getNumFiles(obj)
+            if isempty(obj.FilesPath) 
+                numFiles = NaN;
+            else
+                numFiles = length(obj.FilesPath);
             end
         end
     end
