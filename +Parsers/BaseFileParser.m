@@ -1,4 +1,4 @@
-classdef (Abstract) BaseFileParser < handle
+classdef BaseFileParser < handle
     properties
         VarMapping struct
     end

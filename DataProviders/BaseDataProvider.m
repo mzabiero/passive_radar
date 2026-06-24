@@ -3,7 +3,8 @@ classdef BaseDataProvider < handle
         
     end
     methods (Abstract)
-        [ref, surv, params] = getNextChunk(obj);
+        [ref, surv, params, success] = getNextChunk(obj);
+        
     end
 end
 

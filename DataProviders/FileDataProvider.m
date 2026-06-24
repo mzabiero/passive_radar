@@ -1,11 +1,11 @@
 classdef FileDataProvider < BaseDataProvider
     properties (SetAccess = private, GetAccess = public)
-        NumFiles (1,1) double = 0
+        numFiles (1,1) double = 0
         CurrentIndex (1,1) double = 1
     end
     properties (Access = private)
         m_filesPath cell = {}
-        m_activeParser Parses.BasefileParser
+        m_activeParser
     end
 
     methods (Access = public)
@@ -19,11 +19,11 @@ classdef FileDataProvider < BaseDataProvider
         function configure(obj,filesPath,mappingConfig)
             if isempty(filesPath) return; end
             obj.m_filesPath = filesPath;
-            obj.NumFiles    = length(filesPath);
+            obj.numFiles    = length(filesPath);
             obj.CurrentIndex = 1;
             if isfield(mappingConfig, 'DataSource')
                 switch mappingConfig.DataSource
-                    case 'Is3P'
+                    case 'Is3p'
                         obj.m_activeParser = Parsers.Is3pFileParser();
                     otherwise
                         error("Unknown files format: %s", mappingConfig.DataSource);
@@ -31,12 +31,9 @@ classdef FileDataProvider < BaseDataProvider
             end
         end
 
-        function [ref,surv,params] = getNextChunk(obj)
-            if obj.CurrentIndex <= obj.NumFiles
-                data = load(obj.FilesPath{obj.CurrentIndex});
-                ref = data.ref;
-                surv = data.surv;
-                params = data.params;
+        function [ref,surv,params, success] = getNextChunk(obj)
+            if obj.CurrentIndex <= obj.numFiles
+                [ref, surv, params, success] = obj.m_activeParser.parseFile(obj.m_filesPath(obj.CurrentIndex));
                 obj.CurrentIndex = obj.CurrentIndex + 1;
             else
                 ref = [];
@@ -45,7 +42,7 @@ classdef FileDataProvider < BaseDataProvider
             end
         end
 
-        function numFiles =  getNumFiles(obj)
+        function numFiles =  getnumFiles(obj)
             if isempty(obj.FilesPath) 
                 numFiles = NaN;
             else

@@ -6,11 +6,12 @@ classdef CppBufferDataProvider < BaseDataProvider
         function obj = CppBufferDataProvider()
             obj.MemMap = memmapfile('/dev/shm/pcl_buffer', 'format', 'single');
         end
-        function [ref, surv, params] = getNextChunk(obj)
+        function [ref, surv, params, success] = getNextChunk(obj)
             rawData = obj.MemMap.Data;
             ref = rawData(1:100);  
             surv = rawData(101:200); 
             params = struct('chunkSize', 100); 
+            success = true;
         end
     end
 end
