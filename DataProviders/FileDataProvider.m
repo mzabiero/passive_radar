@@ -17,7 +17,7 @@ classdef FileDataProvider < BaseDataProvider
             end
         end
         function configure(obj,filesPath,mappingConfig)
-            if isempty(filesPath) return; end
+            if isempty(filesPath), return; end
             obj.m_filesPath = filesPath;
             obj.numFiles    = length(filesPath);
             obj.CurrentIndex = 1;
