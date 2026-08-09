@@ -1,7 +1,9 @@
 classdef FileDataProvider < BaseDataProvider
+    properties (Access = public)
+        CurrentIndex (1,1) double = 1
+    end
     properties (SetAccess = private, GetAccess = public)
         numFiles (1,1) double = 0
-        CurrentIndex (1,1) double = 1
     end
     properties (Access = private)
         m_filesPath cell = {}
@@ -31,10 +33,11 @@ classdef FileDataProvider < BaseDataProvider
             end
         end
 
-        function [ref,surv,params, success] = getNextChunk(obj)
+        function [ref,surv,params, success, fileParams] = getNextChunk(obj)
             if obj.CurrentIndex <= obj.numFiles
                 [ref, surv, params, success] = obj.m_activeParser.parseFile(obj.m_filesPath(obj.CurrentIndex));
                 obj.CurrentIndex = obj.CurrentIndex + 1;
+                fileParams = struct("filename",obj.m_filesPath(obj.CurrentIndex), "fileIdx", obj.CurrentIndex);
             else
                 ref = [];
                 surv = [];

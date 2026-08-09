@@ -4,7 +4,7 @@ classdef CppBufferDataProvider < BaseDataProvider
     end
     methods
         function obj = CppBufferDataProvider()
-            obj.MemMap = memmapfile('/dev/shm/pcl_buffer', 'format', 'single');
+            %obj.MemMap = memmapfile('/dev/shm/pcl_buffer', 'format', 'single');
         end
         function [ref, surv, params, success] = getNextChunk(obj)
             rawData = obj.MemMap.Data;

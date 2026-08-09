@@ -21,5 +21,6 @@
     "velRange_ms": 300,
     "fftSize": 2048,
     "corrRange": 2000
-  }
+  },
+    
 }
