@@ -1,4 +1,4 @@
-classdef Recorder < handle
+classdef CafRecorder < handle
     properties (Access = private)
         m_MatFile
         m_FrameCount (1,1) double = 0

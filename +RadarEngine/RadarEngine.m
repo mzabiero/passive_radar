@@ -1,6 +1,7 @@
 classdef RadarEngine < handle
     properties (Access = public)
         SignalParams
+        filtParams
         CafMap
         corr
         ProcessingFlags
@@ -113,6 +114,8 @@ classdef RadarEngine < handle
                     obj.m_Filter = Algorithms.Filters.FastEcaFilter();
             end
             obj.m_Filter.setParams(paramsStruct);
+            obj.filtParams = paramsStruct;
         end
+
     end
 end
