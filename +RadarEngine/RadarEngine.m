@@ -3,7 +3,9 @@ classdef RadarEngine < handle
         SignalParams
         filtParams
         CafMap
+        CafMapClean
         CafMapLin
+        CleanIters = 1
         corr
         ProcessingFlags
         CleanRmPow = 0
@@ -63,21 +65,32 @@ classdef RadarEngine < handle
             end
 
             obj.calculateCAF(ref, surv, params(1).fs);
-
+            surv_clean = surv;
             if obj.ProcessingFlags.useClean
-                [surv, r_km, v_ms] = obj.applyClean(ref, surv, params(1).fs, params(1).fc(1));
-                r_km
-                v_ms
-                obj.calculateCAF(ref, surv, params(1).fs);
+                cleanFlag = true;
+                for i = 1:obj.CleanIters
+                    [maxPeak, linearIdx] = max(obj.CafMap, [], 'all');
+                    [rIdx, vIdx] = ind2sub(size(obj.CafMap), linearIdx);
+                    [surv_clean, r_km, v_ms] = obj.applyClean(ref, surv_clean, params(1).fs, params(1).fc(1),rIdx,vIdx);
+                    obj.calculateCAF(ref, surv_clean, params(1).fs, cleanFlag);
+                end
             end
-            obj.corr = xcorr(surv, ref, 1000);
-            obj.xSurv = surv;
+            obj.corr = xcorr(surv_clean, ref, 1000);
+            obj.xSurv = surv_clean;
             
+            rawPow = 10 * log10(mean(abs(surv).^2) + eps);
+            cleanPow = 10 * log10(mean(abs(surv_clean).^2) + eps);
+            obj.CleanRmPow = rawPow - cleanPow;
+
             disp("Calculating CAF: DONE");
             notify(obj, 'DataProcessed');
         end
 
-        function calculateCAF(obj, ref, surv, fs)
+        function calculateCAF(obj, ref, surv, fs, cleanFlag)
+            if nargin < 5
+                cleanFlag = false;
+            end
+
             c = 3e8;
             N = length(ref);
 
@@ -115,21 +128,40 @@ classdef RadarEngine < handle
 
             rangeIdx = range_full >= obj.MinRange & range_full <= obj.MaxRange;
             dopplerIdx = doppler_full >= obj.MinDoppler & doppler_full <= obj.MaxDoppler;
-
             obj.CafMapLin = caf_matrix(rangeIdx, dopplerIdx);
-            obj.CafMap = caf_dB(rangeIdx, dopplerIdx);
+            if cleanFlag
+                obj.CafMapClean = caf_dB(rangeIdx, dopplerIdx);
+            else
+                obj.CafMap = caf_dB(rangeIdx, dopplerIdx);
+            end
             obj.RangeAxis = range_full(rangeIdx);
             obj.DopplerAxis = doppler_full(dopplerIdx);
         end
 
-        function [x_surv_clean, bistatic_range_km, bistatic_velocity] = applyClean(obj, x_ref, x_surv, fs, fc)
+        function [x_surv_clean, bistatic_range_km, bistatic_velocity] = applyClean(obj, x_ref, x_surv, fs, fc, target_r, target_c)
             c = 3e8;
             lambda = c / fc;
             N = length(x_ref);
 
             mag_matrix = abs(obj.CafMapLin);
-            [maxPeak, linear_idx] = max(mag_matrix, [], 'all');
-            [r_idx, d_idx] = ind2sub(size(mag_matrix), linear_idx);
+
+            if nargin >= 6 && ~isempty(target_r) && ~isempty(target_c)
+                search_win = 3;
+                r_start = max(1, target_r - search_win);
+                r_end   = min(size(mag_matrix, 1), target_r + search_win);
+                d_start = max(1, target_c - search_win);
+                d_end   = min(size(mag_matrix, 2), target_c + search_win);
+
+                local_window = mag_matrix(r_start:r_end, d_start:d_end);
+                [~, max_idx_local] = max(local_window, [], 'all');
+                [r_local, d_local] = ind2sub(size(local_window), max_idx_local);
+
+                r_idx = r_start + r_local - 1;
+                d_idx = d_start + d_local - 1;
+            else
+                [~, linear_idx] = max(mag_matrix, [], 'all');
+                [r_idx, d_idx] = ind2sub(size(mag_matrix), linear_idx);
+            end
 
             delta_doppler = obj.interpolate_3point(mag_matrix, r_idx, d_idx, 2);
             delta_delay   = obj.interpolate_3point(mag_matrix, r_idx, d_idx, 1);
@@ -137,18 +169,31 @@ classdef RadarEngine < handle
             r_idx_float = r_idx + delta_delay;
             d_idx_float = d_idx + delta_doppler;
 
-            samplesPerBlock = size(mag_matrix, 1);
-            numBlocks = size(mag_matrix, 2);
 
-            tau_samples = (r_idx_float - 1) - (samplesPerBlock / 2);
-            bistatic_range_km = (tau_samples / fs) * c / 1000;
+            range_step_km = obj.RangeAxis(2) - obj.RangeAxis(1);
+            doppler_step_hz = obj.DopplerAxis(2) - obj.DopplerAxis(1);
 
-            T_block = samplesPerBlock / fs;
-            F_prf = 1 / T_block;
-            doppler_step = F_prf / numBlocks;
-            fd = -F_prf/2 + (d_idx_float - 1) * doppler_step;
 
-            bistatic_velocity = fd * (lambda / 2);
+            bistatic_range_km = obj.RangeAxis(1) + (r_idx_float - 1) * range_step_km
+            fd = obj.DopplerAxis(1) + (d_idx_float - 1) * doppler_step_hz;
+            tau_samples = (bistatic_range_km * 1000 / c) * fs;
+            bistatic_velocity = fd * (lambda / 2)
+
+            % samplesPerBlock = size(mag_matrix, 1);
+            % numBlocks = size(mag_matrix, 2);
+            % 
+            % dc_range_idx = floor(samplesPerBlock / 2) + 1;
+            % dc_doppler_idx = floor(numBlocks / 2) + 1;
+            % 
+            % tau_samples = r_idx_float - dc_range_idx;
+            % bistatic_range_km = (tau_samples / fs) * c / 1000;
+            % 
+            % T_block = samplesPerBlock / fs;
+            % F_prf = 1 / T_block;
+            % doppler_step = F_prf / numBlocks; 
+            % 
+            % fd = (d_idx_float - dc_doppler_idx) * doppler_step;
+            % bistatic_velocity = fd * (lambda / 2);
 
             d_int = floor(tau_samples);
             d_frac = tau_samples - d_int;
@@ -156,6 +201,7 @@ classdef RadarEngine < handle
             L_kernel = 30;
             n_k = -L_kernel:L_kernel;
             h = sinc(n_k - d_frac) .* hann(2*L_kernel+1)';
+            h = h(:); 
             h = h / sum(h);
 
             if abs(d_int) >= N
@@ -183,11 +229,8 @@ classdef RadarEngine < handle
 
             echo_estimated = alpha * echo_model;
             x_surv_clean = x_surv - echo_estimated;
-            rawPow = 10 * log10(mean(abs(x_surv).^2) + eps);
-            cleanPow = 10 * log10(mean(abs(x_surv_clean).^2) + eps);
-            obj.CleanRmPow = rawPow - cleanPow;
-            
         end
+
         function delta = interpolate_3point(obj, M, r, c, dim)
             [rows, cols] = size(M);
             if dim == 1

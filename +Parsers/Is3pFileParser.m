@@ -4,8 +4,8 @@ classdef Is3pFileParser < Parsers.BaseFileParser
             try
                 filePath = string(filePath);
                 [data, header] = Utils.parseRaw(filePath);
-                ref = data(:,2,:);
-                surv = data(:,1,:);
+                ref = data(:,1,:);
+                surv = data(:,2,:);
                 ref = ref(:);
                 surv = surv(:);
                 metadata = header;
