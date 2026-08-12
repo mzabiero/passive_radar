@@ -1,7 +1,7 @@
 classdef BaseFilter < handle
     properties
         filterLength
-        backFiltLength (1,1) uint32 = 0
+        backFiltLength (1,1) double = 0
     end
 
     methods (Abstract)

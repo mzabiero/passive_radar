@@ -14,13 +14,15 @@ classdef LatticeFilter < Algorithms.Filters.BaseFilter
             backFiltLen = obj.backFiltLength;
             forgettingFact = obj.ForgettingFactor;
             filtOrder = obj.filterLength;
-            
+            ref_shifted = zeros(N,1);
+
             if backFiltLen > 0
-                ref_shifted = [ref(backFiltLen+1:end); zeros(backFiltLen,1)];
-            else
+                ref_shifted(backFiltLen+1 : end) = ref(backFiltLen+1:end);
+            elseif backFiltLen < 0
                 backFiltLen = abs(backFiltLen);
-                ref_shifted = [zeros(backFiltLen,1); ref(1:end-backFiltLen)];
-                %ref_shifted = ref;
+                ref_shifted(1 : end - backFiltLen) = ref(backFiltLen +1 : end);
+            else
+                ref_shifted = ref;
             end
 
             survClean = complex(zeros(N,1));
@@ -60,8 +62,8 @@ classdef LatticeFilter < Algorithms.Filters.BaseFilter
             if isfield(paramsStruct, "BlockLength")
                 obj.BlockLen = paramsStruct.BlockLength;
             end
-            if isfield(paramsStruct, "BackLength")
-                obj.backFiltLength = paramsStruct.BackLength;
+            if isfield(paramsStruct, "BackFilterLength")
+                obj.backFiltLength = paramsStruct.BackFilterLength;
             end
         end
     end

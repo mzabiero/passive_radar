@@ -14,8 +14,8 @@ function plot_spectrum(x, fs, fig)
     X_dB = mag2db(abs(X_norm));
 
 
-    plot(fig,f, X_dB);
-    xlabel(fig,'Częstotliwość [Hz]');
-    ylabel(fig,'|X(f)|');
-    grid(fig,"on");
+    plot(f, X_dB);
+    %xlabel(fig,'Częstotliwość [Hz]');
+    %ylabel(fig,'|X(f)|');
+    %grid(fig,"on");
 end

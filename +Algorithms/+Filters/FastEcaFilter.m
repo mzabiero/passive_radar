@@ -30,11 +30,16 @@ classdef FastEcaFilter < Algorithms.Filters.BaseFilter
             K = obj.filterLength;
             B = obj.BatchSize;
             L = obj.backFiltLength;
-            
+            ref_shifted = zeros(N,1);
             if L > 0
-                surv_shifted = [zeros(L, 1, 'like', surv); surv(1:end-L)];
+                ref_shifted(L + 1 : end) = ref(L + 1 : end);
+                %surv = [zeros(L, 1, 'like', surv); surv(1:end-L)];
+            elseif L < 0
+                L = abs(L);
+                ref_shifted(1 : end - L) = ref(L + 1 : end);
+                %surv = surv;
             else
-                surv_shifted = surv;
+                ref_shifted = ref;
             end
             
             numBlocks = ceil(N / B);
@@ -47,8 +52,8 @@ classdef FastEcaFilter < Algorithms.Filters.BaseFilter
                 idxEnd = min(m * B, N);
                 currB = idxEnd - idxStart + 1;
                 
-                ref_matched = ref(idxStart : idxEnd);
-                surv_matched = surv_shifted(idxStart : idxEnd);
+                ref_matched = ref_shifted(idxStart : idxEnd);
+                surv_matched = surv(idxStart : idxEnd);
                 
                 r_xx = xcorr(ref_matched, K-1, 'none');
                 r_xs = xcorr(surv_matched, ref_matched, K-1, 'none');
@@ -65,9 +70,9 @@ classdef FastEcaFilter < Algorithms.Filters.BaseFilter
                 
                 refStart = idxStart - K + 1;
                 if refStart < 1
-                    refBlock = [zeros(1 - refStart, 1); ref(1 : idxEnd)];
+                    refBlock = [zeros(1 - refStart, 1); ref_shifted(1 : idxEnd)];
                 else
-                    refBlock = ref(refStart : idxEnd);
+                    refBlock = ref_shifted(refStart : idxEnd);
                 end
                 
                 W_f = fft(w, N_fft);
@@ -81,13 +86,13 @@ classdef FastEcaFilter < Algorithms.Filters.BaseFilter
                 survCleanCells{m} = surv_matched - valid_cancel;
             end
             
-            survClean_shifted = cell2mat(survCleanCells);
+            survClean = cell2mat(survCleanCells);
             
-            if L > 0
-                survClean = [survClean_shifted(L+1:end); surv(end-L+1:end)];
-            else
-                survClean = survClean_shifted;
-            end
+            % if L > 0
+            %     survClean = [survClean_shifted(L+1:end); surv(end-L+1:end)];
+            % else
+            %     survClean = survClean_shifted;
+            % end
         end
     end
 end

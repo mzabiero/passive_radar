@@ -11,7 +11,7 @@ classdef EcaFilter < Algorithms.Filters.BaseFilter
             N = length(ref);
             K = obj.FilterLength;
             B = obj.BatchSize;
-
+            
             if B <= K
                 error('BatchSize musi być większy niż FilterLength!');
             end
