@@ -36,9 +36,11 @@ classdef FileDataProvider < BaseDataProvider
         function [ref,surv,params, success, fileParams] = getNextChunk(obj)
             if obj.CurrentIndex <= obj.numFiles
                 [ref, surv, params, success] = obj.m_activeParser.parseFile(obj.m_filesPath(obj.CurrentIndex));
-                obj.CurrentIndex = obj.CurrentIndex + 1;
                 fileParams = struct("filename",obj.m_filesPath(obj.CurrentIndex), "fileIdx", obj.CurrentIndex);
+                obj.CurrentIndex = obj.CurrentIndex + 1;
             else
+                success = 0;
+                fileParams = 0;
                 ref = [];
                 surv = [];
                 params = {};

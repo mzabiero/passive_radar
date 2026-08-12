@@ -9,6 +9,7 @@ classdef RadarEngine < handle
         DopplerAxis
         xRef
         xSurv
+        xSurvRaw
         MinRange = -5
         MaxRange = 5
         MinDoppler = -100
@@ -18,6 +19,7 @@ classdef RadarEngine < handle
 
     properties (Access = private)
         m_Filter
+        m_FilterShort
     end
 
     events
@@ -31,7 +33,7 @@ classdef RadarEngine < handle
 
         function setSignals(obj, ref, surv)
             obj.xRef = ref;
-            obj.xSurv = surv;
+            obj.xSurvRaw = surv;
         end
 
         function setCafParams(obj, minRange, maxRange, minDoppler, maxDoppler, decFactor)
@@ -44,11 +46,12 @@ classdef RadarEngine < handle
 
         function processSignals(obj, params)
             ref = obj.xRef;
-            surv = obj.xSurv;
+            surv = obj.xSurvRaw;
 
             if obj.ProcessingFlags.useFilter && ~isempty(obj.m_Filter)
                 surv = obj.m_Filter.apply(ref, surv);
-                surv(1:4e4) = eps + eps*1j;
+                surv(1:2e3) = eps + eps*1j;
+                surv(end-2e3:end) = eps + eps*1j;
             end
 
             obj.calculateCAF(ref, surv, params(1).fs);
@@ -69,12 +72,15 @@ classdef RadarEngine < handle
             ref_2D = reshape(ref(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
             surv_2D = reshape(surv(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
             
-            winRange = hamming(samplesPerBlock);
-            winDoppler = hamming(numBlocks)';
-
+            winRange = hann(samplesPerBlock);
+            winDoppler = hann(numBlocks)';
+            
             R_f = fft(ref_2D, [], 1);
             S_f = fft(surv_2D, [], 1);
-            cross_spec = (S_f .* conj(R_f)) .* winRange;
+            epsilon = 1e-6 * max(abs(R_f), [], 'all'); 
+            %cross_spec = (S_f .* conj(R_f)) ./ (abs(R_f).^2 + epsilon);
+            cross_spec = (S_f .* conj(R_f));
+            cross_spec = cross_spec .* winRange;
             corr_fast = ifft(cross_spec, [], 1);
             
             corr_fast_win = corr_fast .* winDoppler;

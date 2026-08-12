@@ -426,7 +426,7 @@ function passive_radar_app
             otherwise
                 surv_clean = surv_in;  
         end
-        surv_clean(1:4e4) = eps + eps*j;
+        surv_clean(1:4e4) = eps + eps*1j;
         [caf_mag, d_ax, v_ax] = CAF(data.ref, surv_clean, p.fs, p.fc, p.max_delay, p.doppler_bins, p.R, p.window_type, p.backward_delay);
         
         caf_dB = CAF_dB(caf_mag);
