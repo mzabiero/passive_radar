@@ -189,8 +189,8 @@ function passive_radar_app
         % File buttons
         uibutton(parentPanel, 'Text','Choose ref',  'Position',[10 currentY 160 30], 'ButtonPushedFcn', @(~,~) loadFile('ref'));
         uibutton(parentPanel, 'Text','Choose surv', 'Position',[190 currentY 160 30], 'ButtonPushedFcn', @(~,~) loadFile('surv'));
-        
-        currentY = currentY - 40; % Gap after buttons
+        uibutton(parentPanel, 'Text','Choose Is3p', 'Position',[10 currentY-40 160 30], 'ButtonPushedFcn',@(~,~) loadFile('Is3p'));
+        currentY = currentY - 70; % Gap after buttons
         
         data.params = struct(); 
         
@@ -371,6 +371,18 @@ function passive_radar_app
             if endsWith(file, '.mat', 'IgnoreCase', true)
                 loaded = load(filename);
                 sig = struct2array(loaded);
+            elseif strcmp(type, 'Is3p')
+                filename = string(filename);
+                fullPaths = cell(1,length(filename));
+                fullPaths{1} = filename;
+                Provider = FileDataProvider(fullPaths);        
+                Provider.configure(fullPaths,struct('DataSource', 'Is3p'))
+                [ref, surv, params, success, fileParams] = Provider.getNextChunk();
+                data.ref = ref;
+                data.surv = surv;
+                data.lastSurv = surv;
+                data.ref_flename = filename;
+                data.surv_filename = filename;
             else
                 sig = read_complex_binary(filename);
             end
@@ -379,7 +391,7 @@ function passive_radar_app
             if strcmp(type,'ref')
                 data.ref = sig;
                 data.ref_filename = file;
-            else
+            elseif strcmp(type,'surv')
                 data.surv = sig;
                 data.lastSurv = sig;
                 data.surv_filename = file;
