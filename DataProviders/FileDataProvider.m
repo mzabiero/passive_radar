@@ -20,13 +20,19 @@ classdef FileDataProvider < BaseDataProvider
         end
         function configure(obj,filesPath,mappingConfig)
             if isempty(filesPath), return; end
-            obj.m_filesPath = filesPath;
             obj.numFiles    = length(filesPath);
             obj.CurrentIndex = 1;
             if isfield(mappingConfig, 'DataSource')
                 switch mappingConfig.DataSource
                     case 'Is3p'
+                        obj.m_filesPath = filesPath;
                         obj.m_activeParser = Parsers.Is3pFileParser();
+                    case 'Ref'
+                        obj.m_filesPath{1} = filesPath;
+                        obj.m_activeParser = Parsers.BinFileParser();
+                    case 'Surv'
+                        obj.m_filesPath{2} = filesPath;
+                        obj.m_activeParser = Parsers.BinFileParser();
                     otherwise
                         error("Unknown files format: %s", mappingConfig.DataSource);
                 end
@@ -35,8 +41,17 @@ classdef FileDataProvider < BaseDataProvider
 
         function [ref,surv,params, success, fileParams] = getNextChunk(obj)
             if obj.CurrentIndex <= obj.numFiles
-                [ref, surv, params, success] = obj.m_activeParser.parseFile(obj.m_filesPath(obj.CurrentIndex));
-                fileParams = struct("filename",obj.m_filesPath(obj.CurrentIndex), "fileIdx", obj.CurrentIndex);
+                if isa(obj.m_activeParser, 'Parsers.BinFileParser')
+                    currRef = obj.m_filesPath{1}(obj.CurrentIndex);
+                    currSurv = obj.m_filesPath{2}(obj.CurrentIndex);
+                    targetPath = {currRef, currSurv};
+                    filenameLog = strcat(string(currRef), "|", string(currSurv)); 
+                else
+                    targetPath = obj.m_filesPath{obj.CurrentIndex};
+                    fileNameLog = string(targetPath);
+                end
+                [ref, surv, params, success] = obj.m_activeParser.parseFile(targetPath);
+                fileParams = struct("filename", filenameLog, "fileIdx", obj.CurrentIndex);
                 obj.CurrentIndex = obj.CurrentIndex + 1;
             else
                 success = 0;
@@ -44,6 +59,7 @@ classdef FileDataProvider < BaseDataProvider
                 ref = [];
                 surv = [];
                 params = {};
+                disp('End of files');
             end
         end
 

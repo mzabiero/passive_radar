@@ -99,12 +99,13 @@ classdef RadarEngine < handle
 
             ref_2D = reshape(ref(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
             surv_2D = reshape(surv(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
-
-            winRange = hann(samplesPerBlock);
+            
+            N_fast = 2 * samplesPerBlock;
+            winRange = hann(N_fast);
             winDoppler = hann(numBlocks)';
 
-            R_f = fft(ref_2D, [], 1);
-            S_f = fft(surv_2D, [], 1);
+            R_f = fft(ref_2D, N_fast, 1);
+            S_f = fft(surv_2D, N_fast, 1);
             epsilon = 1e-8 * max(abs(R_f), [], 'all');
             %cross_spec = (S_f .* conj(R_f)) ./ (abs(R_f).^2 + epsilon);
             cross_spec = (S_f .* conj(R_f));
@@ -112,14 +113,16 @@ classdef RadarEngine < handle
             corr_fast = ifft(cross_spec, [], 1);
 
             corr_fast_win = corr_fast .* winDoppler;
-            caf_matrix = fft(corr_fast_win, [], 2);
 
+            caf_matrix = fft(corr_fast_win, [], 2);
             caf_matrix = fftshift(caf_matrix, 2);
             caf_matrix = fftshift(caf_matrix, 1);
 
             %caf_dB = 10 * log10(abs(caf_matrix) + eps);
             caf_dB = mag2db(abs(caf_matrix) + eps);
-            tau_full = linspace(-samplesPerBlock/2, samplesPerBlock/2 - 1, samplesPerBlock)' / fs;
+
+            tau_full = linspace(-N_fast/2, N_fast/2 - 1, N_fast)' / fs;
+            
             range_full = (tau_full * c) / 1000;
 
             T_block = samplesPerBlock / fs;
