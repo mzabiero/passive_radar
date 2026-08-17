@@ -10,3 +10,4 @@ radar_session.log
 .gitignore
 */*.asv
 Files/
+*.avi

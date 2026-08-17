@@ -277,10 +277,10 @@ function bistatic_ellipse_gui()
             
             if abs(delta) < eps
                 if app.hasMapping
-                    pl = geoplot(ax, [app.rx(1), app.tx(1)], [app.rx(2), app.tx(2)], 'Color', ell.color, 'LineWidth',1.5);
+                    pl = geoplot(ax, [app.rx(1), app.tx(1)], [app.rx(2), app.tx(2)], 'Color', ell.color);
                     pl.HitTest = 'off';
                 else
-                    pl = plot(ax, [0, txENU(1)], [0, txENU(2)], 'Color', ell.color, 'LineWidth',1.5);
+                    pl = plot(ax, [0, txENU(1)], [0, txENU(2)], 'Color', ell.color);
                     pl.HitTest = 'off';
                 end
                 continue;
@@ -331,12 +331,12 @@ function bistatic_ellipse_gui()
             end
             
             if app.hasMapping
-                pl1 = geoplot(ax, latpts, lonpts, 'Color',ell.color, 'LineWidth',1.0);
-                pl2 = geoplot(ax, latpts(maskedIdx), lonpts(maskedIdx), 'Color',ell.color,'LineWidth',3);
+                pl1 = geoplot(ax, latpts, lonpts, 'Color',ell.color);
+                pl2 = geoplot(ax, latpts(maskedIdx), lonpts(maskedIdx), 'Color',ell.color);
                 pl1.HitTest = 'off'; pl2.HitTest = 'off';
             else
-                pl1 = plot(ax, pts(:,1), pts(:,2), 'Color', ell.color, 'LineWidth',1.0);
-                pl2 = plot(ax, pts(maskedIdx,1), pts(maskedIdx,2), 'Color', ell.color,'LineWidth',3);
+                pl1 = plot(ax, pts(:,1), pts(:,2), 'Color', ell.color);
+                pl2 = plot(ax, pts(maskedIdx,1), pts(maskedIdx,2), 'Color', ell.color);
                 pl1.HitTest = 'off'; pl2.HitTest = 'off';
             end
         end
@@ -451,11 +451,11 @@ function bistatic_ellipse_gui()
             for i=1:length(E)
                 [latpts(i), lonpts(i)] = enu2ll(E(i), N(i), app.rx);
             end
-            pl1 = geoplot(ax, latpts, lonpts, 'k--', 'LineWidth',1.5);
+            pl1 = geoplot(ax, latpts, lonpts, 'k--');
             pl2 = geoplot(ax, [app.rx(1); latpts; app.rx(1)], [app.rx(2); lonpts; app.rx(2)], 'k-');
             pl1.HitTest='off'; pl2.HitTest='off';
         else
-            pl1 = plot(ax, [0 E 0], [0 N 0], 'k--','LineWidth',1.2);
+            pl1 = plot(ax, [0 E 0], [0 N 0], 'k--');
             pl2 = patch(ax, [0;E';0], [0;N';0], [0.9 0.9 0.9], 'FaceAlpha',0.2,'EdgeColor','none');
             pl1.HitTest='off'; pl2.HitTest='off';
         end

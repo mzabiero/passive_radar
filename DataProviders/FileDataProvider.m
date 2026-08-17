@@ -13,7 +13,7 @@ classdef FileDataProvider < BaseDataProvider
     methods (Access = public)
         function obj = FileDataProvider(path)
             if nargin >= 1
-                obj.FilesPath = path;
+                obj.m_filesPath = path;
             else
                 return;
             end
