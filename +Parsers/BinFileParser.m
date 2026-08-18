@@ -45,7 +45,14 @@ classdef BinFileParser < Parsers.BaseFileParser
     methods (Access = private)
         function outputSignal = loadAndConcatenate(obj, filePaths)
             totalSamples = 0;
+            [~,~,ext] = fileparts(filePaths{1});
+
             for i = 1:length(filePaths)
+                if strcmp(ext, ".mat")
+                    loaded = load(filePaths{i});
+                    outputSignal = struct2array(loaded);
+                    return;
+                end
                 fileInfo = dir(filePaths{i});
                 totalSamples = totalSamples + floor(fileInfo.bytes / 8);
             end

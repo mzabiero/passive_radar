@@ -45,13 +45,13 @@ classdef FileDataProvider < BaseDataProvider
                     currRef = obj.m_filesPath{1}(obj.CurrentIndex);
                     currSurv = obj.m_filesPath{2}(obj.CurrentIndex);
                     targetPath = {currRef, currSurv};
-                    filenameLog = strcat(string(currRef), "|", string(currSurv)); 
+                    fileNameLog = strcat(string(currRef), "|", string(currSurv)); 
                 else
                     targetPath = obj.m_filesPath{obj.CurrentIndex};
                     fileNameLog = string(targetPath);
                 end
                 [ref, surv, params, success] = obj.m_activeParser.parseFile(targetPath);
-                fileParams = struct("filename", filenameLog, "fileIdx", obj.CurrentIndex);
+                fileParams = struct("filename", fileNameLog, "fileIdx", obj.CurrentIndex);
                 obj.CurrentIndex = obj.CurrentIndex + 1;
             else
                 success = 0;
