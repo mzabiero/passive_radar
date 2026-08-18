@@ -6,7 +6,7 @@ classdef FileDataProvider < BaseDataProvider
         numFiles (1,1) double = 0
     end
     properties (Access = private)
-        m_filesPath cell = {}
+        m_filesPath cell = cell(2,2)
         m_activeParser
     end
 
@@ -30,9 +30,11 @@ classdef FileDataProvider < BaseDataProvider
                     case 'Ref'
                         obj.m_filesPath{1} = filesPath;
                         obj.m_activeParser = Parsers.BinFileParser();
+                        obj.m_activeParser.IsSimulation = mappingConfig.isSimulation;
                     case 'Surv'
                         obj.m_filesPath{2} = filesPath;
                         obj.m_activeParser = Parsers.BinFileParser();
+                        obj.m_activeParser.IsSimulation = mappingConfig.isSimulation;
                     otherwise
                         error("Unknown files format: %s", mappingConfig.DataSource);
                 end
@@ -60,6 +62,20 @@ classdef FileDataProvider < BaseDataProvider
                 surv = [];
                 params = {};
                 disp('End of files');
+            end
+        end
+        function fnames = getCurrentFilenames(obj)
+            if isa(obj.m_activeParser,'Parsers.BinFileParser')
+                fnames = struct;
+                if obj.CurrentIndex >= obj.numFiles
+                    idx = obj.numFiles;
+                else
+                    idx = obj.CurrentIndex;
+                end
+                fnames.ref = obj.m_filesPath{1,idx};
+                fnames.surv = obj.m_filesPath{2,idx};
+            else
+                fnames = obj.m_filesPath{obj.CurrentIndex};
             end
         end
 

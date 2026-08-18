@@ -1,9 +1,13 @@
 classdef BinFileParser < Parsers.BaseFileParser
+    properties
+        IsSimulation (1,1) logical = false
+    end
+    
     methods
         function [ref, surv, metadata, success] = parseFile(obj, filePath)
             ref = [];
             surv = [];
-            metadata = struct('FileCount', 0, 'TotalSamples', 0, 'fs', 8e6, 'fc', 520e6);
+            metadata = struct();
             success = false;
             
             try
@@ -25,59 +29,76 @@ classdef BinFileParser < Parsers.BaseFileParser
                     error('BinFileParser:Mismatch', 'File count mismatch.');
                 end
                 
-                ref = obj.loadAndConcatenate(refPaths);
-                surv = obj.loadAndConcatenate(survPaths);
+                [ref, refMeta] = obj.loadAndConcatenate(refPaths);
+                [surv, ~] = obj.loadAndConcatenate(survPaths);
                 
                 minLen = min(length(ref), length(surv));
                 ref = ref(1:minLen);
                 surv = surv(1:minLen);
                 
-                success = true;
+                metadata = refMeta;
                 metadata.FileCount = length(refPaths);
-                metadata.TotalSamples = length(ref);
+                metadata.TotalSamples = minLen;
                 
-            catch ME
+                if ~obj.IsSimulation
+                    metadata.fs = 4e6;
+                    metadata.fc = 178.352e6;
+                end
+                
+                success = true;
+            catch
                 success = false;
             end
         end
     end
     
     methods (Access = private)
-        function outputSignal = loadAndConcatenate(obj, filePaths)
-            totalSamples = 0;
-            [~,~,ext] = fileparts(filePaths{1});
-
+        function [outputSignal, firstMeta] = loadAndConcatenate(obj, filePaths)
+            sigList = cell(length(filePaths), 1);
+            firstMeta = struct();
+            
             for i = 1:length(filePaths)
-                if strcmp(ext, ".mat")
-                    loaded = load(filePaths{i});
-                    outputSignal = struct2array(loaded);
-                    return;
+                [iq, meta] = obj.readSingleFile(filePaths{i});
+                sigList{i} = iq(:);
+                if i == 1
+                    firstMeta = meta;
                 end
-                fileInfo = dir(filePaths{i});
-                totalSamples = totalSamples + floor(fileInfo.bytes / 8);
             end
+            outputSignal = vertcat(sigList{:});
+        end
+        
+        function [iqSig, meta] = readSingleFile(obj, path)
+            meta = struct();
+            [~, ~, ext] = fileparts(path);
             
-            outputSignal = zeros(totalSamples, 1, 'like', 1i);
-            currentIndex = 1;
-            
-            for i = 1:length(filePaths)
-                fid = fopen(filePaths{i}, 'rb');
+            if upper(ext) == ".MAT"
+                data = load(path);
+                if obj.IsSimulation
+                    iqSig = data.iqSig;
+                    meta.tx = data.tx;
+                    meta.rx = data.rx;
+                else
+                    iqSig = struct2array(data);
+                end
+            else
+                fid = fopen(path, 'rb');
                 if fid == -1
                     error('BinFileParser:FileOpenError', 'Cannot open file.');
                 end
                 
-                raw = fread(fid, '*float32');
+                if obj.IsSimulation
+                    metaLen = fread(fid, 1, 'uint32');
+                    metaBytes = fread(fid, metaLen, '*uint8');
+                    meta = jsondecode(native2unicode(metaBytes', 'UTF-8'));
+                end
+                
+                raw = fread(fid, inf, 'float32');
                 fclose(fid);
                 
                 if mod(length(raw), 2) ~= 0
                     raw = raw(1:end-1);
                 end
-                
-                complexSignal = complex(raw(1:2:end), raw(2:2:end));
-                numSamples = length(complexSignal);
-                
-                outputSignal(currentIndex : currentIndex + numSamples - 1) = complexSignal;
-                currentIndex = currentIndex + numSamples;
+                iqSig = raw(1:2:end) + 1j * raw(2:2:end);
             end
         end
     end

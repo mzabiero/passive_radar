@@ -54,14 +54,14 @@ classdef RadarEngine < handle
             
             if obj.ProcessingFlags.useFilter1 && ~isempty(obj.m_Filter1)
                 surv = obj.m_Filter1.apply(ref, surv);
-                surv(1:5e4) = eps + eps*1j;
-                surv(end-2e3:end) = eps + eps*1j;
+                %surv(1:5e4) = eps + eps*1j;
+                %surv(end-2e3:end) = eps + eps*1j;
             end
 
             if obj.ProcessingFlags.useFilter2 && ~isempty(obj.m_Filter2)
                 surv = obj.m_Filter2.apply(ref, surv);
-                surv(1:5e4) = eps + eps*1j;
-                surv(end-2e3:end) = eps + eps*1j;
+                %surv(1:5e4) = eps + eps*1j;
+                %surv(end-2e3:end) = eps + eps*1j;
             end
 
             obj.calculateCAF(ref, surv, params(1).fs);
