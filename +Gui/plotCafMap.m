@@ -6,7 +6,7 @@ function ax = plotCafMap(cafMap, rangeAxis, dopplerAxis, ax, plotMax)
     if nargin < 5
         plotMax = false;
     end
-    
+    %cla(ax);
     imagesc(ax, dopplerAxis, rangeAxis, cafMap);
     ax.YDir = 'normal';
     

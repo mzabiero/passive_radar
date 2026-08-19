@@ -51,17 +51,17 @@ classdef RadarEngine < handle
         function processSignals(obj, params)
             ref = obj.xRef;
             surv = obj.xSurvRaw;
-            
+
             if obj.ProcessingFlags.useFilter1 && ~isempty(obj.m_Filter1)
                 surv = obj.m_Filter1.apply(ref, surv);
-                %surv(1:5e4) = eps + eps*1j;
-                %surv(end-2e3:end) = eps + eps*1j;
+                surv(1:5e4) = eps + eps*1j;
+                surv(end-2e3:end) = eps + eps*1j;
             end
 
             if obj.ProcessingFlags.useFilter2 && ~isempty(obj.m_Filter2)
                 surv = obj.m_Filter2.apply(ref, surv);
-                %surv(1:5e4) = eps + eps*1j;
-                %surv(end-2e3:end) = eps + eps*1j;
+                surv(1:5e4) = eps + eps*1j;
+                surv(end-2e3:end) = eps + eps*1j;
             end
 
             obj.calculateCAF(ref, surv, params(1).fs);
@@ -77,7 +77,7 @@ classdef RadarEngine < handle
             end
             obj.corr = xcorr(surv_clean, ref, 1000);
             obj.xSurv = surv_clean;
-            
+
             rawPow = 10 * log10(mean(abs(surv).^2) + eps);
             cleanPow = 10 * log10(mean(abs(surv_clean).^2) + eps);
             obj.CleanRmPow = rawPow - cleanPow;
@@ -94,35 +94,40 @@ classdef RadarEngine < handle
             c = 3e8;
             N = length(ref);
 
-            numBlocks = 512;
-            samplesPerBlock = floor(N / numBlocks);
+            max_R = max(abs(obj.MaxRange), abs(obj.MinRange));
+            Q = ceil((max_R * 1000 / c) * fs) + 1;
+            Q = max(Q, 64);
+
+            P = floor(N / Q);
+            if P < 1
+                error('Sygnal zbyt krotki dla zadanego promienia MaxRange.');
+            end
+
+            samplesPerBlock = Q;
+            numBlocks = P;
 
             ref_2D = reshape(ref(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
             surv_2D = reshape(surv(1:samplesPerBlock*numBlocks), samplesPerBlock, numBlocks);
-            
+
             N_fast = 2 * samplesPerBlock;
             winRange = hann(N_fast);
             winDoppler = hann(numBlocks)';
 
             R_f = fft(ref_2D, N_fast, 1);
             S_f = fft(surv_2D, N_fast, 1);
-            epsilon = 1e-8 * max(abs(R_f), [], 'all');
-            %cross_spec = (S_f .* conj(R_f)) ./ (abs(R_f).^2 + epsilon);
+
             cross_spec = (S_f .* conj(R_f));
             cross_spec = cross_spec .* winRange;
             corr_fast = ifft(cross_spec, [], 1);
-
             corr_fast_win = corr_fast .* winDoppler;
 
             caf_matrix = fft(corr_fast_win, [], 2);
             caf_matrix = fftshift(caf_matrix, 2);
             caf_matrix = fftshift(caf_matrix, 1);
 
-            %caf_dB = 10 * log10(abs(caf_matrix) + eps);
             caf_dB = mag2db(abs(caf_matrix) + eps);
 
             tau_full = linspace(-N_fast/2, N_fast/2 - 1, N_fast)' / fs;
-            
             range_full = (tau_full * c) / 1000;
 
             T_block = samplesPerBlock / fs;
@@ -131,12 +136,15 @@ classdef RadarEngine < handle
 
             rangeIdx = range_full >= obj.MinRange & range_full <= obj.MaxRange;
             dopplerIdx = doppler_full >= obj.MinDoppler & doppler_full <= obj.MaxDoppler;
+
             obj.CafMapLin = caf_matrix(rangeIdx, dopplerIdx);
+
             if cleanFlag
                 obj.CafMapClean = caf_dB(rangeIdx, dopplerIdx);
             else
                 obj.CafMap = caf_dB(rangeIdx, dopplerIdx);
             end
+
             obj.RangeAxis = range_full(rangeIdx);
             obj.DopplerAxis = doppler_full(dopplerIdx);
         end
@@ -184,17 +192,17 @@ classdef RadarEngine < handle
 
             % samplesPerBlock = size(mag_matrix, 1);
             % numBlocks = size(mag_matrix, 2);
-            % 
+            %
             % dc_range_idx = floor(samplesPerBlock / 2) + 1;
             % dc_doppler_idx = floor(numBlocks / 2) + 1;
-            % 
+            %
             % tau_samples = r_idx_float - dc_range_idx;
             % bistatic_range_km = (tau_samples / fs) * c / 1000;
-            % 
+            %
             % T_block = samplesPerBlock / fs;
             % F_prf = 1 / T_block;
-            % doppler_step = F_prf / numBlocks; 
-            % 
+            % doppler_step = F_prf / numBlocks;
+            %
             % fd = (d_idx_float - dc_doppler_idx) * doppler_step;
             % bistatic_velocity = fd * (lambda / 2);
 
@@ -204,7 +212,7 @@ classdef RadarEngine < handle
             L_kernel = 30;
             n_k = -L_kernel:L_kernel;
             h = sinc(n_k - d_frac) .* hann(2*L_kernel+1)';
-            h = h(:); 
+            h = h(:);
             h = h / sum(h);
 
             if abs(d_int) >= N

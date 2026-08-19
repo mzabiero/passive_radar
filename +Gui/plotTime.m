@@ -3,7 +3,7 @@ function ax = plotTime(sig, fs, ax, ttl)
         fig = figure('Name', 'Time Domain', 'NumberTitle', 'off');
         ax = axes(fig);
     end
-
+    cla(ax);
     N = length(sig);
     timeAxis = (0:N-1) / fs;
     

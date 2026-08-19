@@ -524,7 +524,7 @@ function passive_radar_app
 
     function runXcorr()
         if ~isfield(data,'lastSurv') || ~isfield(data,'ref'), return; end
-        [corr, lags] = xcorr(data.ref, data.lastSurv, data.params.corr_delay);
+        [corr, lags] = xcorr(data.lastSurv, data.ref, data.params.corr_delay);
         %corr = abs(corr)/max(abs(corr));
         D = 3e8 * lags ./ data.params.fs;
         figure; plot(lags, mag2db(abs(corr))); title("Cross-correlation"); xlabel('Xcorr lags'); ylabel('dB');

@@ -3,7 +3,7 @@ function ax = plotSpectrum(sig, fs, fc, ax, ttl)
         fig = figure('Name', 'Frequency Spectrum', 'NumberTitle', 'off');
         ax = axes(fig);
     end
-    
+    cla(ax);
     N = length(sig);
     spectrum = fftshift(fft(sig));
     spectrumMag = 10 * log10(abs(spectrum) + eps);

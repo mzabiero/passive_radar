@@ -27,7 +27,7 @@ classdef Recorder < handle
             
             % --- TWORZENIE UKRYTEJ FIGURY DO ZAPISU PNG ---
             % Position: [x, y, szerokość, wysokość] - wymusza szerszy format
-            obj.m_HiddenFig = figure('Visible', 'off', 'Position', [0, 0, 1200, 600], 'Color', 'w');
+            obj.m_HiddenFig = figure('Visible', 'off', 'Position', [0, 0, 1200, 600], 'Color', 'black');
             obj.m_HiddenAx = axes('Parent', obj.m_HiddenFig);
             obj.m_HiddenImage = []; % Inicjalizacja uchwytu obrazu
             disableDefaultInteractivity(obj.m_HiddenAx); 

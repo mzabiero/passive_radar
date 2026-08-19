@@ -3,7 +3,7 @@ function ax = plotCorr(lags, corrVec, ax)
         fig = figure('Name', 'Cross-Correlation', 'NumberTitle', 'off');
         ax = axes(fig);
     end
-    
+    cla(ax);
     plot(ax, lags, abs(corrVec));
     grid(ax, 'on');
     

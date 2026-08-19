@@ -4,7 +4,7 @@ function ax = plotCafVelCut(cafMap, rangeIdx, dopplerAxis, margin, ax, ttl)
         ax = axes(fig);
     end
     
-    
+    cla(ax);
     rStart = max(1, rangeIdx - margin);
     rStop = min(size(cafMap, 1), rangeIdx + margin);
     
