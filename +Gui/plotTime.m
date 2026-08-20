@@ -3,18 +3,26 @@ function ax = plotTime(sig, fs, ax, ttl)
         fig = figure('Name', 'Time Domain', 'NumberTitle', 'off');
         ax = axes(fig);
     end
-    cla(ax);
+    
     N = length(sig);
     timeAxis = (0:N-1) / fs;
     
-    plot(ax, timeAxis, real(sig));
-    grid(ax, 'on');
-    
-    xlabel(ax, 'Czas [s]');
-    ylabel(ax, 'Amplituda');
     if nargin < 4
-        title(ax, 'Przebieg czasowy sygnału');
+        tStr = 'Przebieg czasowy sygnału';
     else
-        title(ax, ttl);
+        tStr = ttl;
+    end
+    
+    lineObj = findobj(ax, 'Type', 'line');
+    if isempty(lineObj)
+        plot(ax, timeAxis, real(sig));
+        grid(ax, 'on');
+        xlabel(ax, 'Czas [s]');
+        ylabel(ax, 'Amplituda');
+        title(ax, tStr);
+    else
+        lineObj.XData = timeAxis;
+        lineObj.YData = real(sig);
+        ax.Title.String = tStr;
     end
 end

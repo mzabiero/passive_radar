@@ -4,20 +4,27 @@ function ax = plotCafVelCut(cafMap, rangeIdx, dopplerAxis, margin, ax, ttl)
         ax = axes(fig);
     end
     
-    cla(ax);
     rStart = max(1, rangeIdx - margin);
     rStop = min(size(cafMap, 1), rangeIdx + margin);
-    
     cafSlice = cafMap(rStart:rStop, :);
     
-    plot(ax, dopplerAxis, cafSlice');
-    grid(ax, 'on');
-    
-    xlabel(ax, 'Doppler [Hz]');
-    ylabel(ax, 'Power CAF [dB]');
     if nargin < 6 
-        title(ax, sprintf('Velocity Cuts (Range Idx: %d \\pm %d)', rangeIdx, margin));
+        tStr = sprintf('Velocity Cuts (Range Idx: %d \\pm %d)', rangeIdx, margin);
     else
-        title(ax, sprintf('Velocity Cuts (Range Idx: %d \\pm %d) %s', rangeIdx, margin, ttl));
+        tStr = sprintf('Velocity Cuts (Range Idx: %d \\pm %d) %s', rangeIdx, margin, ttl);
+    end
+    
+    lineObjs = findobj(ax, 'Type', 'line');
+    if isempty(lineObjs)
+        plot(ax, dopplerAxis, cafSlice');
+        grid(ax, 'on');
+        xlabel(ax, 'Doppler [Hz]');
+        ylabel(ax, 'Power CAF [dB]');
+        title(ax, tStr);
+    else
+        delete(lineObjs);
+        plot(ax, dopplerAxis, cafSlice');
+        grid(ax, 'on');
+        ax.Title.String = tStr;
     end
 end

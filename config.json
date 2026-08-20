@@ -16,9 +16,9 @@
     "forgettingFactFar": 0.99999
   },
   "p_caf": {
-    "rangeStart_m": -30,
-    "rangeStop_m": 30,
-    "velRange_ms": 100,
+    "rangeStart_m": 0,
+    "rangeStop_m": 20,
+    "velRange_ms": 300,
     "fftSize": 2048,
     "corrRange": 2000
   }   

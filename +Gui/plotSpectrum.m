@@ -3,20 +3,28 @@ function ax = plotSpectrum(sig, fs, fc, ax, ttl)
         fig = figure('Name', 'Frequency Spectrum', 'NumberTitle', 'off');
         ax = axes(fig);
     end
-    cla(ax);
+    
     N = length(sig);
     spectrum = fftshift(fft(sig));
     spectrumMag = 10 * log10(abs(spectrum) + eps);
     freqAxis = linspace(-fs/2, fs/2, N) + fc;
     
-    plot(ax, freqAxis, spectrumMag);
-    grid(ax, 'on');
-    
-    xlabel(ax, 'Częstotliwość [Hz]');
-    ylabel(ax, 'Amplituda [dB]');
     if nargin < 5
-        title(ax, 'Widmo częstotliwościowe');
+        tStr = 'Widmo częstotliwościowe';
     else
-        title(ax, ttl);
+        tStr = ttl;
+    end
+    
+    lineObj = findobj(ax, 'Type', 'line');
+    if isempty(lineObj)
+        plot(ax, freqAxis, spectrumMag);
+        grid(ax, 'on');
+        xlabel(ax, 'Częstotliwość [Hz]');
+        ylabel(ax, 'Amplituda [dB]');
+        title(ax, tStr);
+    else
+        lineObj.XData = freqAxis;
+        lineObj.YData = spectrumMag;
+        ax.Title.String = tStr;
     end
 end
