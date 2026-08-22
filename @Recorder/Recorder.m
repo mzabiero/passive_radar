@@ -1,6 +1,6 @@
 classdef Recorder < handle
     properties (Access = private)
-        m_MatFile
+        %m_MatFile
         m_FrameCount (1,1) double = 0
         m_IsRecording (1,1) logical = false
         m_FramesFolder string
@@ -17,8 +17,8 @@ classdef Recorder < handle
             if exist(filePath, 'file') == 2
                 delete(filePath);
             end
-            obj.m_MatFile = matfile(filePath, 'Writable', true);
-            obj.m_MatFile.FilterName = filterName;
+            %obj.m_MatFile = matfile(filePath, 'Writable', true);
+            %obj.m_MatFile.FilterName = filterName;
             [dirPath, name, ~] = fileparts(filePath);
             obj.m_FramesFolder = fullfile(dirPath, sprintf('%s_frames', name));
             if ~exist(obj.m_FramesFolder, 'dir')
@@ -45,11 +45,11 @@ classdef Recorder < handle
             fc = obj.m_FrameCount;
             
             % Zapis danych matematycznych do pliku .mat
-            obj.m_MatFile.CafMovie(fc, 1) = {single(cafMatrix)};
-            obj.m_MatFile.FilterParams(fc, 1) = {filterParams};
-            obj.m_MatFile.RangeAxes(fc, 1) = {rangeAxis};
-            obj.m_MatFile.DopplerAxes(fc, 1) = {dopplerAxis};
-            obj.m_MatFile.SourceFiles(fc, 1) = {sourceFilename};
+            % obj.m_MatFile.CafMovie(fc, 1) = {single(cafMatrix)};
+            % obj.m_MatFile.FilterParams(fc, 1) = {filterParams};
+            % obj.m_MatFile.RangeAxes(fc, 1) = {rangeAxis};
+            % obj.m_MatFile.DopplerAxes(fc, 1) = {dopplerAxis};
+            % obj.m_MatFile.SourceFiles(fc, 1) = {sourceFilename};
             if isempty(obj.m_HiddenAx) || ~isvalid(obj.m_HiddenAx)
                 return;
             end
@@ -97,7 +97,7 @@ classdef Recorder < handle
         
         function stopRecording(obj)
             obj.m_IsRecording = false;
-            obj.m_MatFile = [];
+            %obj.m_MatFile = [];
             
             % Zamknięcie ukrytej figury, aby zwolnić pamięć
             if ~isempty(obj.m_HiddenFig) && isvalid(obj.m_HiddenFig)
@@ -152,25 +152,39 @@ classdef Recorder < handle
             end
         end
         
-        function createVideoFromPngFolder(framesFolder, outputFilename, fps)
+      function createVideoFromPngFolder(framesFolder, outputFilename, fps)
             filePattern = fullfile(framesFolder, '*.png');
             imageFiles = dir(filePattern);
             [~, idx] = sort([imageFiles.datenum]);
             imageFiles = imageFiles(idx);
             numFrames = length(imageFiles);
+            
             if numFrames == 0
-                error('Nie znaleziono plików PNG we wskazanym folderze.');
+                error('VideoCreator:NoFiles', 'Nie znaleziono plików PNG we wskazanym folderze.');
             end
+            
+            firstImgPath = fullfile(framesFolder, imageFiles(1).name);
+            firstImg = imread(firstImgPath);
+            [targetHeight, targetWidth, ~] = size(firstImg);
+            
             v = VideoWriter(outputFilename, "Motion JPEG AVI");
             v.FrameRate = fps;
             v.Quality = 95; 
             open(v);
+            
             for i = 1:numFrames
                 imgPath = fullfile(framesFolder, imageFiles(i).name);
                 img = imread(imgPath);
+                
+                [h, w, ~] = size(img);
+                if h ~= targetHeight || w ~= targetWidth
+                    img = imresize(img, [targetHeight, targetWidth]);
+                end
+                
                 writeVideo(v, img);
-                if mod(i, 100) == 0
+                if mod(i,100) == 0
                     fprintf('Przetworzono %d / %d klatek...\n', i, numFrames);
+            
                 end
             end
             close(v);

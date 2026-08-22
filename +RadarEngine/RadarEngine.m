@@ -261,6 +261,42 @@ classdef RadarEngine < handle
             if abs(delta) > 0.6, delta = 0; end
         end
 
+        function [stftMap, timeAxis, dopplerAxis] = calculateRadarSTFT(obj, ref, surv, fs, rangeOffsetKm, params)
+            if nargin < 6
+                params = struct();
+                params.samplesPerBlock = 4096;
+                params.windowLength = 128;
+                params.overlapLength = 120;
+                params.nfft = 1024;
+            end
+            c = 3e8;
+            Q = params.samplesPerBlock;
+            P = floor(min(length(ref), length(surv)) / Q);
+
+            ref_2D = reshape(ref(1:Q*P), Q, P);
+            surv_2D = reshape(surv(1:Q*P), Q, P);
+
+            N_fast = 2 * Q;
+            winRange = hann(N_fast);
+
+            R_f = fft(ref_2D, N_fast, 1);
+            S_f = fft(surv_2D, N_fast, 1);
+
+            cross_spec = (S_f .* conj(R_f)) .* winRange;
+            corr_fast = ifft(cross_spec, [], 1);
+            corr_fast_shifted = fftshift(corr_fast, 1);
+
+            tau_full = linspace(-N_fast/2, N_fast/2 - 1, N_fast)' / fs;
+            range_full = (tau_full * c) / 1000;
+
+            [~, rIdx] = min(abs(range_full - rangeOffsetKm));
+            slow_time_sig = corr_fast_shifted(rIdx, :);
+
+            F_prf = fs / Q;
+            [S, dopplerAxis, timeAxis] = spectrogram(slow_time_sig, params.windowLength, params.overlapLength, params.nfft, F_prf, 'centered');
+
+            stftMap = mag2db(abs(S) + eps);
+        end
         function setProcessingFlags(obj, flags)
             obj.ProcessingFlags = flags;
         end
