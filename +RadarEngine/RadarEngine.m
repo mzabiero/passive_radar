@@ -13,6 +13,7 @@ classdef RadarEngine < handle
         DopplerAxis
         xRef
         xSurv
+        xSurvCAF
         xSurvRaw
         MinRange = -5
         MaxRange = 5
@@ -54,18 +55,19 @@ classdef RadarEngine < handle
 
             if obj.ProcessingFlags.useFilter1 && ~isempty(obj.m_Filter1)
                 surv = obj.m_Filter1.apply(ref, surv);
-                surv(1:5e4) = eps + eps*1j;
-                surv(end-2e3:end) = eps + eps*1j;
+                %surv(1:5e4) = eps + eps*1j;
+                %surv(end-2e3:end) = eps + eps*1j;
             end
 
             if obj.ProcessingFlags.useFilter2 && ~isempty(obj.m_Filter2)
                 surv = obj.m_Filter2.apply(ref, surv);
-                surv(1:5e4) = eps + eps*1j;
-                surv(end-2e3:end) = eps + eps*1j;
+                %surv(1:5e4) = eps + eps*1j;
+                %surv(end-2e3:end) = eps + eps*1j;
             end
 
             obj.calculateCAF(ref, surv, params(1).fs);
             surv_clean = surv;
+            obj.xSurvCAF = surv;
             if obj.ProcessingFlags.useClean
                 cleanFlag = true;
                 for i = 1:obj.CleanIters
@@ -264,9 +266,9 @@ classdef RadarEngine < handle
         function [stftMap, timeAxis, dopplerAxis] = calculateRadarSTFT(obj, ref, surv, fs, rangeOffsetKm, params)
             if nargin < 6
                 params = struct();
-                params.samplesPerBlock = 4096;
-                params.windowLength = 128;
-                params.overlapLength = 120;
+                params.samplesPerBlock = 4096; % 8192 | 4096
+                params.windowLength = 58;      % 31   | 128
+                params.overlapLength = 52;     % 29   | 120
                 params.nfft = 1024;
             end
             c = 3e8;
@@ -297,6 +299,8 @@ classdef RadarEngine < handle
 
             stftMap = mag2db(abs(S) + eps);
         end
+        
+        
         function setProcessingFlags(obj, flags)
             obj.ProcessingFlags = flags;
         end

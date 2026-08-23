@@ -41,8 +41,8 @@ classdef BinFileParser < Parsers.BaseFileParser
                 metadata.TotalSamples = minLen;
                 
                 if ~obj.IsSimulation
-                    metadata.fs = 4e6;
-                    metadata.fc = 178.352e6;
+                    metadata.fs = 0;
+                    metadata.fc = 0;
                 end
                 
                 success = true;

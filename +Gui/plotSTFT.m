@@ -6,12 +6,13 @@ function ax = plotSTFT(stftMap, timeAxis, dopplerAxis, ax, ttl)
     
     imgObj = findobj(ax, 'Type', 'image');
     if isempty(imgObj)
+        timeAxis = timeAxis * 1e3;
         imagesc(ax, timeAxis, dopplerAxis, stftMap);
         ax.YDir = 'normal';
         colormap(ax, 'jet');
         colorbar(ax);
         axis(ax, 'xy');
-        xlabel(ax, 'Czas [s]');
+        xlabel(ax, 'Czas [ms]');
         ylabel(ax, 'Doppler [Hz]');
         if nargin < 5
             title(ax, 'STFT (Micro-Doppler)');
@@ -19,6 +20,7 @@ function ax = plotSTFT(stftMap, timeAxis, dopplerAxis, ax, ttl)
             title(ax, ttl);
         end
     else
+        timeAxis = timeAxis * 1e3;
         imgObj.CData = stftMap;
         imgObj.XData = timeAxis;
         imgObj.YData = dopplerAxis;
