@@ -5,6 +5,8 @@ classdef ProcessingFlags < handle
         isWindow  
         trimSignals 
         useClean
+        CafType
+        CLEANint3p
     end
 
     methods
@@ -15,12 +17,16 @@ classdef ProcessingFlags < handle
                 obj.isWindow = false;
                 obj.trimSignals = false;
                 obj.useClean = false;
+                obj.CafType = "Batched";
+                obj.CLEANint3p = "Interpolate";
             else
                 obj.useFilter1 = flags.useFilter1;
                 obj.useFilter2 = flags.useFilter1;
                 obj.isWindow = flags.isWindow;
                 obj.trimSignals = flags.trimSignals;
                 obj.useClean = flags.useClean;
+                obj.CafType = flags.CafType;
+                obj.CLEANint3p = flags.CLEANint3p;
             end
         end
     end

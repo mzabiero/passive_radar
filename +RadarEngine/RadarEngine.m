@@ -7,7 +7,7 @@ classdef RadarEngine < handle
         CafMapLin
         CleanIters = 1
         corr
-        ProcessingFlags
+        ProcessingFlags RadarEngine.ProcessingFlags
         CleanRmPow = 0
         RangeAxis
         DopplerAxis
@@ -20,6 +20,8 @@ classdef RadarEngine < handle
         MinDoppler = -100
         MaxDoppler = 100
         DecimationFactor = 1000
+        debugPlot_delay
+        debugPlot_doppler
     end
 
     properties (Access = private)
@@ -55,28 +57,51 @@ classdef RadarEngine < handle
 
             if obj.ProcessingFlags.useFilter1 && ~isempty(obj.m_Filter1)
                 surv = obj.m_Filter1.apply(ref, surv);
-                %surv(1:5e4) = eps + eps*1j;
-                %surv(end-2e3:end) = eps + eps*1j;
             end
-
             if obj.ProcessingFlags.useFilter2 && ~isempty(obj.m_Filter2)
                 surv = obj.m_Filter2.apply(ref, surv);
-                %surv(1:5e4) = eps + eps*1j;
-                %surv(end-2e3:end) = eps + eps*1j;
             end
 
-            obj.calculateCAF(ref, surv, params(1).fs);
+            minR = obj.MinRange;
+            maxR = obj.MaxRange;
+            minVel = obj.MinDoppler;
+            maxVel = obj.MaxDoppler;
+            fs = params(1).fs;
+            fc = params(1).fc(1);
+
+            %cafFunc = @obj.calculateCAF;
+            cafFunc = @Algorithms.calcCafBatched;
+            if obj.ProcessingFlags.CafType == "Direct"
+                cafFunc = @Algorithms.calcCafDirect;
+            end
+
+            [cafLin, rAx, vAx] = cafFunc(ref, surv, fs, fc, minR, maxR, minVel, maxVel);
+            cafDb = mag2db(abs(cafLin) + eps);
+
+            obj.CafMapLin = cafLin;
+            obj.CafMap = cafDb;
+            obj.RangeAxis = rAx;
+            obj.DopplerAxis = vAx;
+
             surv_clean = surv;
             obj.xSurvCAF = surv;
+
             if obj.ProcessingFlags.useClean
-                cleanFlag = true;
+                currentCafDb = cafDb;
                 for i = 1:obj.CleanIters
-                    [maxPeak, linearIdx] = max(obj.CafMap, [], 'all');
-                    [rIdx, vIdx] = ind2sub(size(obj.CafMap), linearIdx);
-                    [surv_clean, r_km, v_ms] = obj.applyClean(ref, surv_clean, params(1).fs, params(1).fc(1),rIdx,vIdx);
-                    obj.calculateCAF(ref, surv_clean, params(1).fs, cleanFlag);
+                    [~, linearIdx] = max(currentCafDb, [], 'all');
+                    [rIdx, vIdx] = ind2sub(size(currentCafDb), linearIdx);
+
+                    [surv_clean, ~, ~] = obj.applyClean(ref, surv_clean, fs, fc(1), rIdx, vIdx);
+
+                    [cafLinClean, ~, ~] = cafFunc(ref, surv_clean, fs, fc, minR, maxR, minVel, maxVel);
+                    currentCafDb = mag2db(abs(cafLinClean) + eps);
                 end
+                obj.CafMapClean = currentCafDb;
+            else
+                obj.CafMapClean = 0;
             end
+
             obj.corr = xcorr(surv_clean, ref, 1000);
             obj.xSurv = surv_clean;
 
@@ -88,8 +113,8 @@ classdef RadarEngine < handle
             notify(obj, 'DataProcessed');
         end
 
-        function calculateCAF(obj, ref, surv, fs, cleanFlag)
-            if nargin < 5
+        function [caf, rax, vax] = calculateCAF(obj, ref, surv, fs,fc,minR, maxR, minVel, maxVel, cleanFlag)
+            if nargin < 10
                 cleanFlag = false;
             end
 
@@ -146,12 +171,15 @@ classdef RadarEngine < handle
             else
                 obj.CafMap = caf_dB(rangeIdx, dopplerIdx);
             end
-
+            caf = caf_dB;
+            rax = range_full;
+            vax = doppler_full;
             obj.RangeAxis = range_full(rangeIdx);
             obj.DopplerAxis = doppler_full(dopplerIdx);
         end
 
         function [x_surv_clean, bistatic_range_km, bistatic_velocity] = applyClean(obj, x_ref, x_surv, fs, fc, target_r, target_c)
+            disp("CLEAN...");
             c = 3e8;
             lambda = c / fc;
             N = length(x_ref);
@@ -187,10 +215,10 @@ classdef RadarEngine < handle
             doppler_step_hz = obj.DopplerAxis(2) - obj.DopplerAxis(1);
 
 
-            bistatic_range_km = obj.RangeAxis(1) + (r_idx_float - 1) * range_step_km
+            bistatic_range_km = obj.RangeAxis(1) + (r_idx_float - 1) * range_step_km;
             fd = obj.DopplerAxis(1) + (d_idx_float - 1) * doppler_step_hz;
             tau_samples = (bistatic_range_km * 1000 / c) * fs;
-            bistatic_velocity = fd * (lambda / 2)
+            bistatic_velocity = fd * (lambda / 2);
 
             % samplesPerBlock = size(mag_matrix, 1);
             % numBlocks = size(mag_matrix, 2);
@@ -262,15 +290,21 @@ classdef RadarEngine < handle
 
             if abs(delta) > 0.6, delta = 0; end
         end
-
-        function [stftMap, timeAxis, dopplerAxis] = calculateRadarSTFT(obj, ref, surv, fs, rangeOffsetKm, params)
-            if nargin < 6
+        function [tfMap, timeAxis, dopplerAxis, slow_time_sig] = calculateRadarSTFT(obj, ref, surv, fs, rangeOffsetKm, params, useWVD, rangeMargin)
+            if nargin < 8
+                rangeMargin = 0;
+            end
+            if nargin < 7
+                useWVD = false;
+            end
+            if nargin < 6 || isempty(params)
                 params = struct();
-                params.samplesPerBlock = 4096; % 8192 | 4096
-                params.windowLength = 58;      % 31   | 128
-                params.overlapLength = 52;     % 29   | 120
+                params.samplesPerBlock = 4096;
+                params.windowLength = 58;
+                params.overlapLength = 52;
                 params.nfft = 1024;
             end
+
             c = 3e8;
             Q = params.samplesPerBlock;
             P = floor(min(length(ref), length(surv)) / Q);
@@ -292,15 +326,28 @@ classdef RadarEngine < handle
             range_full = (tau_full * c) / 1000;
 
             [~, rIdx] = min(abs(range_full - rangeOffsetKm));
-            slow_time_sig = corr_fast_shifted(rIdx, :);
+
+            rStart = max(1, rIdx - rangeMargin);
+            rStop = min(N_fast, rIdx + rangeMargin);
+
+            if rangeMargin > 0
+                matrixSlice = corr_fast_shifted(rStart:rStop, :);
+                slow_time_sig = reshape(matrixSlice.', 1, []);
+            else
+                slow_time_sig = corr_fast_shifted(rIdx, :);
+            end
 
             F_prf = fs / Q;
-            [S, dopplerAxis, timeAxis] = spectrogram(slow_time_sig, params.windowLength, params.overlapLength, params.nfft, F_prf, 'centered');
 
-            stftMap = mag2db(abs(S) + eps);
+            if useWVD
+                [S, dopplerAxis, timeAxis] = wvd(slow_time_sig, F_prf, 'smoothedPseudo');
+                tfMap = 10 * log10(abs(S) + eps);
+            else
+                [S, dopplerAxis, timeAxis] = spectrogram(slow_time_sig, params.windowLength, params.overlapLength, params.nfft, F_prf, 'centered');
+                tfMap = mag2db(abs(S) + eps);
+            end
         end
-        
-        
+
         function setProcessingFlags(obj, flags)
             obj.ProcessingFlags = flags;
         end

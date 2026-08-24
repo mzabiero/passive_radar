@@ -26,7 +26,7 @@ function ax = plotCafMap(cafMap, rangeAxis, dopplerAxis, ax, plotMax)
     meanCaf = mean(cafMap(:), "all");
     maxCaf  = max(cafMap(:));  
     clim(ax, [meanCaf maxCaf]);
-    
+    axis(ax, 'tight');
     markerObj = findobj(ax, 'Tag', 'MaxPeakMarker');
     if plotMax    
         [~, maxIdx] = max(cafMap, [], 'all');
