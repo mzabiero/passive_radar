@@ -1,15 +1,16 @@
 classdef BinFileParser < Parsers.BaseFileParser
     properties
         IsSimulation (1,1) logical = false
+        simSource string = "home"
     end
     
     methods
-        function [ref, surv, metadata, success] = parseFile(obj, filePath)
+        function [ref, surv, metadata, success] = parseFile(obj, filePath, simSource)
             ref = [];
             surv = [];
             metadata = struct();
             success = false;
-            
+            obj.simSource = simSource;
             try
                 if ~iscell(filePath) || length(filePath) ~= 2
                     error('BinFileParser:InvalidInput', 'Invalid filePath format.');
@@ -86,19 +87,26 @@ classdef BinFileParser < Parsers.BaseFileParser
                     error('BinFileParser:FileOpenError', 'Cannot open file.');
                 end
                 
-                if obj.IsSimulation
+                if obj.IsSimulation && strcmp(obj.simSource, "work")
                     metaLen = fread(fid, 1, 'uint32');
                     metaBytes = fread(fid, metaLen, '*uint8');
                     meta = jsondecode(native2unicode(metaBytes', 'UTF-8'));
+                    raw = fread(fid, inf, 'float32');
+                    if mod(length(raw), 2) ~= 0
+                        raw = raw(1:end-1);
+                    end
+                    iqSig = raw(1:2:end) + 1j * raw(2:2:end);
+                elseif obj.IsSimulation && strcmp(obj.simSource, "home")
+                    headerLen = fread(fid, 1, 'uint32');
+                    headerChar = fread(fid, headerLen, '*char')';
+                    meta = jsondecode(headerChar);
+
+                    sigLen = fread(fid, 1, 'uint32');
+                    realPart = fread(fid, sigLen, 'double');
+                    imagPart = fread(fid, sigLen, 'double');
+                    iqSig = realPart + 1i * imagPart;
                 end
-                
-                raw = fread(fid, inf, 'float32');
                 fclose(fid);
-                
-                if mod(length(raw), 2) ~= 0
-                    raw = raw(1:end-1);
-                end
-                iqSig = raw(1:2:end) + 1j * raw(2:2:end);
             end
         end
     end
