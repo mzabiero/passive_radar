@@ -5,12 +5,12 @@ classdef BinFileParser < Parsers.BaseFileParser
     end
     
     methods
-        function [ref, surv, metadata, success] = parseFile(obj, filePath, simSource)
+        function [ref, surv, metadata, success] = parseFile(obj, filePath)
             ref = [];
             surv = [];
             metadata = struct();
             success = false;
-            obj.simSource = simSource;
+            %obj.simSource = simSource;
             try
                 if ~iscell(filePath) || length(filePath) ~= 2
                     error('BinFileParser:InvalidInput', 'Invalid filePath format.');

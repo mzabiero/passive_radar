@@ -1,6 +1,7 @@
 function ax = plotCafMap(cafMap, rangeAxis, dopplerAxis, ax, plotMax)
     if nargin < 4 || isempty(ax) || ~isvalid(ax)
-        fig = figure('Name', 'CAF Map (Local)', 'NumberTitle', 'off');
+        %fig = figure('Name', 'CAF Map (Local)', 'NumberTitle', 'off');
+        fig = figure;
         ax = axes(fig);
     end
     if nargin < 5
@@ -14,9 +15,10 @@ function ax = plotCafMap(cafMap, rangeAxis, dopplerAxis, ax, plotMax)
         colormap(ax, 'jet');
         colorbar(ax);
         axis(ax, 'xy');
-        xlabel(ax, 'Doppler [Hz]');
-        ylabel(ax, 'Range [km]');
-        title(ax, 'Cross Ambiguity Function');
+        xlabel(ax, 'Prędkość bistatyczna [m/s]','FontSize',14);
+        ylabel(ax, 'Odegłość bistatyczna [km]','FontSize',14);
+        zlabel(ax, 'Amplituda [dB]','FontSize',14);
+        %title(ax, 'Cross Ambiguity Function');
     else
         imgObj.CData = cafMap;
         imgObj.XData = dopplerAxis;

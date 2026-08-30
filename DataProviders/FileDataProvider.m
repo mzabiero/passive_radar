@@ -52,7 +52,8 @@ classdef FileDataProvider < BaseDataProvider
                     targetPath = obj.m_filesPath{obj.CurrentIndex};
                     fileNameLog = string(targetPath);
                 end
-                [ref, surv, params, success] = obj.m_activeParser.parseFile(targetPath,"home");
+                %[ref, surv, params, success] = obj.m_activeParser.parseFile(targetPath,"home");
+                [ref, surv, params, success] = obj.m_activeParser.parseFile(targetPath);
                 fileParams = struct("filename", fileNameLog, "fileIdx", obj.CurrentIndex);
                 obj.CurrentIndex = obj.CurrentIndex + 1;
             else

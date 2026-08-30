@@ -16,7 +16,7 @@ function [cafLin, rAx, vAx] = calcCafBatched(ref, surv, fs, fc, minRange, maxRan
     surv_2D = reshape(surv(1:Q*P), Q, P);
     
     N_fast = 2 * Q;
-    winRange = hann(N_fast);
+    winRange = ifftshift(hann(N_fast));
     winDoppler = hann(P)';
     
     R_f = fft(ref_2D, N_fast, 1);

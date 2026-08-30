@@ -79,21 +79,23 @@ classdef RadarEngine < handle
             cafDb = mag2db(abs(cafLin) + eps);
 
             obj.CafMapLin = cafLin;
+            cafLinClean = cafLin;
             obj.CafMap = cafDb;
             obj.RangeAxis = rAx;
             obj.DopplerAxis = vAx;
 
             surv_clean = surv;
             obj.xSurvCAF = surv;
-
+            
             if obj.ProcessingFlags.useClean
                 currentCafDb = cafDb;
                 for i = 1:obj.CleanIters
                     [~, linearIdx] = max(currentCafDb, [], 'all');
                     [rIdx, vIdx] = ind2sub(size(currentCafDb), linearIdx);
+    
 
-                    [surv_clean, ~, ~] = obj.applyClean(ref, surv_clean, fs, fc(1), rIdx, vIdx);
-
+                    %[surv_clean, ~, ~] = obj.applyClean(ref, surv_clean, fs, fc(1), rIdx, vIdx);
+                    [surv_clean,~,~] = CLEAN(cafLinClean, rAx, vAx, ref, surv_clean, fs, fc, [], [], true);
                     [cafLinClean, ~, ~] = cafFunc(ref, surv_clean, fs, fc, minR, maxR, minVel, maxVel);
                     currentCafDb = mag2db(abs(cafLinClean) + eps);
                 end
@@ -179,11 +181,9 @@ classdef RadarEngine < handle
         end
 
         function [x_surv_clean, bistatic_range_km, bistatic_velocity] = applyClean(obj, x_ref, x_surv, fs, fc, target_r, target_c)
-            disp("CLEAN...");
             c = 3e8;
             lambda = c / fc;
             N = length(x_ref);
-
             mag_matrix = abs(obj.CafMapLin);
 
             if nargin >= 6 && ~isempty(target_r) && ~isempty(target_c)
@@ -196,7 +196,6 @@ classdef RadarEngine < handle
                 local_window = mag_matrix(r_start:r_end, d_start:d_end);
                 [~, max_idx_local] = max(local_window, [], 'all');
                 [r_local, d_local] = ind2sub(size(local_window), max_idx_local);
-
                 r_idx = r_start + r_local - 1;
                 d_idx = d_start + d_local - 1;
             else
@@ -204,57 +203,53 @@ classdef RadarEngine < handle
                 [r_idx, d_idx] = ind2sub(size(mag_matrix), linear_idx);
             end
 
-            delta_doppler = obj.interpolate_3point(mag_matrix, r_idx, d_idx, 2);
-            delta_delay   = obj.interpolate_3point(mag_matrix, r_idx, d_idx, 1);
+            if r_idx > 1 && r_idx < size(mag_matrix, 1)
+                a_r = mag_matrix(r_idx-1, d_idx);
+                b_r = mag_matrix(r_idx, d_idx);
+                c_r = mag_matrix(r_idx+1, d_idx);
+                delta_delay = 0.5 * (a_r - c_r) / (a_r - 2*b_r + c_r);
+            else
+                delta_delay = 0;
+            end
+
+            if d_idx > 1 && d_idx < size(mag_matrix, 2)
+                a_d = mag_matrix(r_idx, d_idx-1);
+                b_d = mag_matrix(r_idx, d_idx);
+                c_d = mag_matrix(r_idx, d_idx+1);
+                delta_doppler = 0.5 * (a_d - c_d) / (a_d - 2*b_d + c_d);
+            else
+                delta_doppler = 0;
+            end
 
             r_idx_float = r_idx + delta_delay;
             d_idx_float = d_idx + delta_doppler;
 
-
             range_step_km = obj.RangeAxis(2) - obj.RangeAxis(1);
             doppler_step_hz = obj.DopplerAxis(2) - obj.DopplerAxis(1);
 
-
             bistatic_range_km = obj.RangeAxis(1) + (r_idx_float - 1) * range_step_km;
             fd = obj.DopplerAxis(1) + (d_idx_float - 1) * doppler_step_hz;
-            tau_samples = (bistatic_range_km * 1000 / c) * fs;
-            bistatic_velocity = fd * (lambda / 2);
 
-            % samplesPerBlock = size(mag_matrix, 1);
-            % numBlocks = size(mag_matrix, 2);
-            %
-            % dc_range_idx = floor(samplesPerBlock / 2) + 1;
-            % dc_doppler_idx = floor(numBlocks / 2) + 1;
-            %
-            % tau_samples = r_idx_float - dc_range_idx;
-            % bistatic_range_km = (tau_samples / fs) * c / 1000;
-            %
-            % T_block = samplesPerBlock / fs;
-            % F_prf = 1 / T_block;
-            % doppler_step = F_prf / numBlocks;
-            %
-            % fd = (d_idx_float - dc_doppler_idx) * doppler_step;
-            % bistatic_velocity = fd * (lambda / 2);
+            tau_samples = (bistatic_range_km * 1000 / c) * fs;
+            bistatic_velocity = -fd * lambda; 
 
             d_int = floor(tau_samples);
             d_frac = tau_samples - d_int;
 
             L_kernel = 30;
-            n_k = -L_kernel:L_kernel;
-            h = sinc(n_k - d_frac) .* hann(2*L_kernel+1)';
-            h = h(:);
-            h = h / sum(h);
+            n_k = (-L_kernel:L_kernel)';
+            h = sinc(n_k - d_frac) .* hann(2*L_kernel+1);
+
+            x_ref_frac = conv(x_ref, h, 'same');
 
             if abs(d_int) >= N
-                x_ref_final = zeros(N,1);
+                x_ref_final = zeros(N, 1);
             else
                 if d_int >= 0
-                    temp = [zeros(d_int,1); x_ref(1:N-d_int)];
+                    x_ref_final = [zeros(d_int, 1); x_ref_frac(1:N-d_int)];
                 else
-                    temp = [x_ref(1-d_int:end); zeros(-d_int,1)];
+                    x_ref_final = [x_ref_frac(1-d_int:end); zeros(-d_int, 1)];
                 end
-                x_ref_final = conv(temp, h, 'same');
-                x_ref_final = x_ref_final(1:N);
             end
 
             t_vec = (0:N-1).' / fs;

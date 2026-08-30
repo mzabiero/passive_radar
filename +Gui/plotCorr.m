@@ -6,13 +6,13 @@ function ax = plotCorr(lags, corrVec, ax)
     
     lineObj = findobj(ax, 'Type', 'line');
     if isempty(lineObj)
-        plot(ax, lags, abs(corrVec));
+        plot(ax, lags, corrVec);
         grid(ax, 'on');
         xlabel(ax, 'Opóźnienie [próbki]');
         ylabel(ax, 'Moduł Korelacji');
         title(ax, 'Funkcja Korelacji');
     else
         lineObj.XData = lags;
-        lineObj.YData = abs(corrVec);
+        lineObj.YData = corrVec;
     end
 end
