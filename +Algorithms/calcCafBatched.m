@@ -32,8 +32,8 @@ function [cafLin, rAx, vAx] = calcCafBatched(ref, surv, fs, fc, minRange, maxRan
     range_full = (tau_full * c) / 1000;
     
     F_prf = fs / Q;
-    doppler_full = linspace(-F_prf/2, F_prf/2, P);
-    vel_full = doppler_full * (lambda / 2);
+    doppler_full = linspace(-F_prf/2, F_prf/2,P);
+    vel_full = doppler_full * lambda;
     
     rangeIdx = range_full >= minRange & range_full <= maxRange;
     velIdx = vel_full >= minVel & vel_full <= maxVel;

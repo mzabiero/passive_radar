@@ -48,7 +48,7 @@ function [surv_clean, r_km, v_ms] = CLEAN(cafLin, rAx, vAx, ref, surv, fs, fc, r
 
     c = 3e8;
     tau = (r_km * 1000) / c;
-    fd = v_ms * 2 / lambda;
+    fd = v_ms / lambda;
 
     N = length(ref);
     padN = 2 * N; 
