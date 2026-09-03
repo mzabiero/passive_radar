@@ -105,6 +105,9 @@ classdef BinFileParser < Parsers.BaseFileParser
                     realPart = fread(fid, sigLen, 'double');
                     imagPart = fread(fid, sigLen, 'double');
                     iqSig = realPart + 1i * imagPart;
+                else
+                    raw = fread(fid, 'float32');
+                    iqSig = raw(1:2:end) + 1i * raw(2:2:end);
                 end
                 fclose(fid);
             end

@@ -61,7 +61,10 @@ classdef RadarEngine < handle
             if obj.ProcessingFlags.useFilter2 && ~isempty(obj.m_Filter2)
                 surv = obj.m_Filter2.apply(ref, surv);
             end
-
+            if obj.ProcessingFlags.trimSignals
+                surv(1:2.5e3) = 0;
+                surv(end-1e3:end) = 0;
+            end
             minR = obj.MinRange;
             maxR = obj.MaxRange;
             minVel = obj.MinDoppler;

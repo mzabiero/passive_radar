@@ -17,8 +17,8 @@ function ax = plotTime(sig, fs, ax, ttl)
     if isempty(lineObj)
         plot(ax, timeAxis, real(sig));
         grid(ax, 'on');
-        xlabel(ax, 'Czas [s]');
-        ylabel(ax, 'Amplituda');
+        xlabel(ax, 'Czas [s]','FontSize',14);
+        ylabel(ax, 'Amplituda','FontSize',14);
         title(ax, tStr);
     else
         lineObj.XData = timeAxis;

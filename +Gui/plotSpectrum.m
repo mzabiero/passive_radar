@@ -19,8 +19,8 @@ function ax = plotSpectrum(sig, fs, fc, ax, ttl)
     if isempty(lineObj)
         plot(ax, freqAxis, spectrumMag);
         grid(ax, 'on');
-        xlabel(ax, 'Częstotliwość [Hz]');
-        ylabel(ax, 'Amplituda [dB]');
+        xlabel(ax, 'Częstotliwość [Hz]','FontSize',14);
+        ylabel(ax, 'Amplituda [dB]','FontSize',14);
         title(ax, tStr);
     else
         lineObj.XData = freqAxis;

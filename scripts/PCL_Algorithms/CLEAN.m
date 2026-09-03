@@ -75,4 +75,6 @@ function [surv_clean, r_km, v_ms] = CLEAN(cafLin, rAx, vAx, ref, surv, fs, fc, r
 
     surv_clean = surv;
     surv_clean(:) = surv(:) - simEcho;
+
+    fprintf("CLEAN: range: %.2f km, vel: %.2f m/s\n", r_km, v_ms);
 end
